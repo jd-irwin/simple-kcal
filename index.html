@@ -12,6 +12,12 @@
 </head>
 <body>
   <main>
+    <div id="load-error" class="message error" role="alert" hidden></div>
+
+    <button type="button" id="backup-banner" class="banner" hidden>
+      It's been over a week since your last backup. Export a backup in Settings.
+    </button>
+
     <section id="screen-today" class="screen" data-screen="today">
       <h1>Today</h1>
       <p class="placeholder">Your daily log will appear here.</p>
@@ -34,8 +40,25 @@
 
     <section id="screen-settings" class="screen" data-screen="settings" hidden>
       <h1>Settings</h1>
-      <p class="placeholder">Export and import will appear here.</p>
-      <p class="muted">Version <span id="app-version"></span></p>
+
+      <div class="card">
+        <h2>Backup</h2>
+        <p>Last backed up: <strong id="last-backup">Never</strong></p>
+        <p class="muted" id="data-counts"></p>
+        <div class="button-row">
+          <button type="button" id="export-btn" class="btn btn-primary">Export backup</button>
+          <button type="button" id="import-btn" class="btn">Import backup</button>
+        </div>
+        <input type="file" id="import-file" accept=".json,application/json" hidden>
+        <p id="settings-message" class="message" role="status" hidden></p>
+        <p class="muted small">Importing replaces all data on this phone.</p>
+      </div>
+
+      <div class="card">
+        <h2>About</h2>
+        <p>Batch kcal version <span id="app-version"></span></p>
+        <p class="muted small">All data is stored on this phone only.</p>
+      </div>
     </section>
   </main>
 

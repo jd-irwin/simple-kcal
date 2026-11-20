@@ -6,6 +6,9 @@
   --border: #dcdcd8;
   --accent: #2f6f4f;
   --accent-text: #ffffff;
+  --danger: #b3261e;
+  --notice-bg: #fff4d6;
+  --notice-text: #5c4400;
   --tap: 44px;
   --tabbar-h: 56px;
   color-scheme: light dark;
@@ -20,6 +23,9 @@
     --border: #333333;
     --accent: #6cc59a;
     --accent-text: #0b1f15;
+    --danger: #f2b8b5;
+    --notice-bg: #3a3014;
+    --notice-text: #f3dc9a;
   }
 }
 
@@ -56,9 +62,84 @@ h1 {
   margin: 0 0 12px;
 }
 
+h2 {
+  font-size: 1.125rem;
+  margin: 0 0 8px;
+}
+
+p {
+  margin: 0 0 8px;
+}
+
 .placeholder,
 .muted {
   color: var(--muted);
+}
+
+.small {
+  font-size: 0.875rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.btn {
+  flex: 1 1 140px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.banner {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--notice-bg);
+  color: var(--notice-text);
+  cursor: pointer;
+}
+
+.banner[hidden],
+.message[hidden] {
+  display: none;
+}
+
+.message {
+  margin: 8px 0;
+}
+
+.message.error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+#load-error {
+  margin-bottom: 16px;
 }
 
 /* Inputs at 16px or more so iOS does not zoom on focus. */
