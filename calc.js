@@ -491,14 +491,52 @@
     ['foods', 'recipes', 'entries'].forEach((k) => {
       if (!Array.isArray(data[k])) throw new Error('The data is missing its list of ' + k + '.');
     });
+    const foods = data.foods.filter(isValidFood);
+    const recipes = data.recipes.filter(isValidRecipe).map((r) =>
+      Object.assign({}, r, { ingredients: r.ingredients.filter(isValidIngredient) }));
+    const entries = data.entries.filter(isValidEntry);
+    const ingredientsDropped = data.recipes.filter(isValidRecipe)
+      .reduce((n, r) => n + r.ingredients.length, 0) -
+      recipes.reduce((n, r) => n + r.ingredients.length, 0);
+    const skipped = data.foods.length - foods.length + data.recipes.length - recipes.length +
+      data.entries.length - entries.length + ingredientsDropped;
     const defaults = emptyData().settings;
-    return {
+    const out = {
       schemaVersion: SCHEMA_VERSION,
-      foods: data.foods,
-      recipes: data.recipes,
-      entries: data.entries,
-      settings: Object.assign({}, defaults, data.settings || {}),
+      foods: foods,
+      recipes: recipes,
+      entries: entries,
+      settings: Object.assign({}, defaults, isObject(data.settings) ? data.settings : {}),
     };
+    // Not stored: how many unreadable records were dropped, so the UI can say so.
+    Object.defineProperty(out, 'skipped', { value: skipped, enumerable: false });
+    return out;
+  }
+
+  // Records that cannot be shown or used are dropped on load and import rather than
+  // crashing a screen. The checks are deliberately minimal.
+  function isObject(v) {
+    return !!v && typeof v === 'object' && !Array.isArray(v);
+  }
+
+  function isValidFood(f) {
+    return isObject(f) && typeof f.id === 'string' && typeof f.name === 'string' &&
+      (f.unit === '100g' || f.unit === 'item') && isNum(f.kcal);
+  }
+
+  function isValidIngredient(i) {
+    return isObject(i) && typeof i.name === 'string' && (i.unit === '100g' || i.unit === 'item') &&
+      isNum(i.amount) && isNum(i.kcal);
+  }
+
+  function isValidRecipe(r) {
+    return isObject(r) && typeof r.id === 'string' && typeof r.name === 'string' &&
+      Array.isArray(r.ingredients);
+  }
+
+  function isValidEntry(e) {
+    return isObject(e) && typeof e.id === 'string' && typeof e.date === 'string' &&
+      /^\d{4}-\d{2}-\d{2}$/.test(e.date) && isNum(e.quantity) && isNum(e.perAmount);
   }
 
   function countData(data) {
@@ -534,7 +572,7 @@
       entries: obj.entries,
     });
     const exportedAt = typeof obj.exportedAt === 'string' ? obj.exportedAt : null;
-    return { data, counts: countData(data), exportedAt };
+    return { data, counts: countData(data), exportedAt, skipped: data.skipped };
   }
 
   function isBackupStale(lastBackupIso, nowMs, days) {

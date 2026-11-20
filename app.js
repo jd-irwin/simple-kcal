@@ -12,6 +12,8 @@
   let state = Calc.emptyData();
   // True when stored data exists but could not be read. Saving is blocked so it is never overwritten.
   let readOnly = false;
+  // Shown once after loading if unreadable records were dropped.
+  let startupNotice = '';
   let currentScreen = 'today';
   let todayKey = Calc.dateKey(new Date());
   let selectedDate = todayKey;
@@ -35,6 +37,10 @@
     }
     try {
       state = Calc.migrate(JSON.parse(raw));
+      if (state.skipped > 0) {
+        startupNotice = plural(state.skipped, 'saved record', 'saved records') +
+          ' could not be read and ' + (state.skipped === 1 ? 'was' : 'were') + ' left out.';
+      }
     } catch (e) {
       readOnly = true;
       showLoadError('Your saved data could not be read (' + e.message + '). Nothing has been changed. Import a backup in Settings to restore it.');
@@ -949,9 +955,12 @@
       return;
     }
     const current = countsText(Calc.countData(state));
+    const skippedText = result.skipped > 0
+      ? '\n\n' + plural(result.skipped, 'record in the file could not be read and will be', 'records in the file could not be read and will be') + ' left out.'
+      : '';
     const ok = window.confirm(
       'Replace all data with ' + countsText(result.counts) + '?\n\n' +
-      'Your current ' + current + ' will be deleted.'
+      'Your current ' + current + ' will be deleted.' + skippedText
     );
     if (!ok) return;
 
@@ -1245,6 +1254,7 @@
     });
 
     render();
+    if (startupNotice) toast(startupNotice);
   }
 
   // Exposed for console debugging.

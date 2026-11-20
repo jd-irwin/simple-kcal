@@ -420,6 +420,33 @@ test('isRecipe tells recipes from foods', () => {
   assert.equal(Calc.isRecipe({ name: 'Oats', unit: '100g', kcal: 380 }), false);
 });
 
+test('migrate drops unreadable records and counts them', () => {
+  const good = { id: 'f1', name: 'Bread', unit: '100g', kcal: 200, protein: 0, carbs: 100, fat: 0 };
+  const d = Calc.migrate({
+    schemaVersion: 2,
+    foods: ['bread', good, { id: 'f2', unit: '100g', kcal: 1 }, null],
+    recipes: [{ id: 'r1', name: 'Soup', ingredients: [{ name: 'Leek', unit: '100g', amount: 200, kcal: 30 }, 'junk'], portions: 2, cookedWeight: null }, 42],
+    entries: [{ id: 'e1', date: '2026-11-20', quantity: 1, perAmount: 1, unit: 'quick', source: 'quick', kcal: 100 }, { id: 'e2' }],
+  });
+  assert.deepEqual(d.foods, [good]);
+  assert.equal(d.recipes.length, 1);
+  assert.equal(d.recipes[0].ingredients.length, 1);
+  assert.equal(d.entries.length, 1);
+  assert.equal(d.skipped, 3 + 1 + 1 + 1);
+  assert.equal(Object.keys(d).includes('skipped'), false, 'not stored');
+});
+
+test('importing a backup with a stray string food skips it', () => {
+  const r = Calc.parseImport(JSON.stringify({
+    app: 'batch-kcal', schemaVersion: 1, exportedAt: '2026-11-20T10:00:00Z',
+    foods: ['bread', { id: 'gbj7suj8', name: 'Bread', unit: '100g', kcal: 200, protein: 0, carbs: 100, fat: 0, lastUsed: 1, lastQty: 100 }],
+    recipes: [], entries: [],
+  }));
+  assert.equal(r.counts.foods, 1);
+  assert.equal(r.skipped, 1);
+  assert.equal(Calc.searchRecent(r.data.foods, '').length, 1);
+});
+
 // ---------- Display ----------
 
 test('fmtKcal and fmtMacro round for display and show a dash for null', () => {
