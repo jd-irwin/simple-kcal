@@ -134,6 +134,88 @@
     return isNum(n) ? String(Math.round(n * 10) / 10) : DASH;
   }
 
+  const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // 'Fri 20/11/2026'
+  function weekdayDate(key) {
+    const p = parseKey(key);
+    const wd = WEEKDAYS[new Date(p.y, p.m - 1, p.d, 12).getDay()];
+    return wd + ' ' + formatDate(key);
+  }
+
+  // 'Today', 'Yesterday', 'Tomorrow', or 'Thu 12/11/2026'
+  function dayTitle(key, todayKey) {
+    if (key === todayKey) return 'Today';
+    if (key === addDays(todayKey, -1)) return 'Yesterday';
+    if (key === addDays(todayKey, 1)) return 'Tomorrow';
+    return weekdayDate(key);
+  }
+
+  // Quantity for display: up to 2 decimal places, no trailing zeros.
+  function fmtQty(n) {
+    return String(Math.round(n * 100) / 100);
+  }
+
+  // '150 g', '1 item', '2.5 items'
+  function formatAmount(qty, unit) {
+    if (unit === '100g') return fmtQty(qty) + ' g';
+    return fmtQty(qty) + (qty === 1 ? ' item' : ' items');
+  }
+
+  // ---------- Input parsing ----------
+
+  // '' -> null, '12.5' or '12,5' -> 12.5, anything else (including negatives) -> NaN.
+  function parseNumber(str) {
+    const s = String(str == null ? '' : str).trim().replace(',', '.');
+    if (s === '') return null;
+    if (!/^(\d+\.?\d*|\.\d+)$/.test(s)) return NaN;
+    return Number(s);
+  }
+
+  // ---------- Lists ----------
+
+  function entriesForDate(entries, key) {
+    return entries
+      .filter((e) => e.date === key)
+      .sort((a, b) => (a.created || 0) - (b.created || 0));
+  }
+
+  function byRecent(a, b) {
+    return (b.lastUsed || 0) - (a.lastUsed || 0) || a.name.localeCompare(b.name);
+  }
+
+  function byName(a, b) {
+    return a.name.localeCompare(b.name, 'en-GB', { sensitivity: 'base' });
+  }
+
+  // Every word of the query must appear somewhere in the name. Case-insensitive.
+  function matchesQuery(name, query) {
+    const n = name.toLowerCase();
+    return query.toLowerCase().split(/\s+/).filter(Boolean).every((w) => n.includes(w));
+  }
+
+  // Search results (or everything, if the query is blank) sorted most recently used first.
+  function searchRecent(items, query) {
+    return items.filter((it) => matchesQuery(it.name, query || '')).sort(byRecent);
+  }
+
+  // Search results (or everything) sorted by name, for the Library.
+  function searchByName(items, query) {
+    return items.filter((it) => matchesQuery(it.name, query || '')).sort(byName);
+  }
+
+  // Starting amount when logging a saved food: the last amount used, or 100 g / 1 item.
+  function defaultQty(food) {
+    if (isNum(food.lastQty) && food.lastQty > 0) return food.lastQty;
+    return food.unit === '100g' ? 100 : 1;
+  }
+
+  // 'none' (no entry has it), 'partial' (some do) or 'complete'.
+  function macroStatus(macroTotal, count) {
+    if (macroTotal.known === 0) return 'none';
+    return macroTotal.known < count ? 'partial' : 'complete';
+  }
+
   // ---------- Data, migration, backup ----------
 
   const SCHEMA_VERSION = 1;
@@ -225,7 +307,9 @@
   }
 
   const Calc = {
-    dateKey, addDays, formatDate,
+    dateKey, addDays, formatDate, weekdayDate, dayTitle,
+    fmtQty, formatAmount, parseNumber,
+    entriesForDate, searchRecent, searchByName, defaultQty, macroStatus,
     scaleNullable, foodValues,
     sumEntries,
     recipeTotals, recipePerGram, recipePerPortion, recipeServing,

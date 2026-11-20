@@ -242,5 +242,73 @@ test('isBackupStale at the 7-day boundary', () => {
   assert.equal(Calc.isBackupStale('garbage', now), true);
 });
 
+// ---------- Stage 2 helpers ----------
+
+test('weekdayDate and dayTitle', () => {
+  assert.equal(Calc.weekdayDate('2026-11-20'), 'Fri 20/11/2026');
+  assert.equal(Calc.dayTitle('2026-11-20', '2026-11-20'), 'Today');
+  assert.equal(Calc.dayTitle('2026-11-19', '2026-11-20'), 'Yesterday');
+  assert.equal(Calc.dayTitle('2026-11-21', '2026-11-20'), 'Tomorrow');
+  assert.equal(Calc.dayTitle('2026-11-12', '2026-11-20'), 'Thu 12/11/2026');
+  assert.equal(Calc.dayTitle('2026-03-29', '2026-03-30'), 'Yesterday'); // across BST start
+});
+
+test('formatAmount', () => {
+  assert.equal(Calc.formatAmount(150, '100g'), '150 g');
+  assert.equal(Calc.formatAmount(1, 'item'), '1 item');
+  assert.equal(Calc.formatAmount(2.5, 'item'), '2.5 items');
+  assert.equal(Calc.formatAmount(1 / 3, 'item'), '0.33 items');
+});
+
+test('parseNumber', () => {
+  assert.equal(Calc.parseNumber(''), null);
+  assert.equal(Calc.parseNumber('   '), null);
+  assert.equal(Calc.parseNumber(undefined), null);
+  assert.equal(Calc.parseNumber('12'), 12);
+  assert.equal(Calc.parseNumber(' 12.5 '), 12.5);
+  assert.equal(Calc.parseNumber('12,5'), 12.5);
+  assert.equal(Calc.parseNumber('.5'), 0.5);
+  assert.equal(Calc.parseNumber('0'), 0);
+  assert.ok(Number.isNaN(Calc.parseNumber('-3')));
+  assert.ok(Number.isNaN(Calc.parseNumber('abc')));
+  assert.ok(Number.isNaN(Calc.parseNumber('1.2.3')));
+});
+
+test('entriesForDate filters and sorts by created', () => {
+  const es = [
+    { id: 'b', date: '2026-11-20', created: 20 },
+    { id: 'x', date: '2026-11-19', created: 5 },
+    { id: 'a', date: '2026-11-20', created: 10 },
+  ];
+  assert.deepEqual(Calc.entriesForDate(es, '2026-11-20').map((e) => e.id), ['a', 'b']);
+  assert.deepEqual(Calc.entriesForDate(es, '2026-11-18'), []);
+});
+
+test('searchRecent and searchByName', () => {
+  const foods = [
+    { name: 'Oat milk', lastUsed: 1 },
+    { name: 'Porridge oats', lastUsed: 3 },
+    { name: 'Banana', lastUsed: 2 },
+  ];
+  assert.deepEqual(Calc.searchRecent(foods, '').map((f) => f.name), ['Porridge oats', 'Banana', 'Oat milk']);
+  assert.deepEqual(Calc.searchRecent(foods, 'OAT').map((f) => f.name), ['Porridge oats', 'Oat milk']);
+  assert.deepEqual(Calc.searchRecent(foods, 'oats porr').map((f) => f.name), ['Porridge oats']);
+  assert.deepEqual(Calc.searchByName(foods, '').map((f) => f.name), ['Banana', 'Oat milk', 'Porridge oats']);
+  assert.deepEqual(Calc.searchByName(foods, 'zzz'), []);
+});
+
+test('defaultQty uses last amount, else 100 g or 1 item', () => {
+  assert.equal(Calc.defaultQty({ unit: '100g', lastQty: 45 }), 45);
+  assert.equal(Calc.defaultQty({ unit: '100g' }), 100);
+  assert.equal(Calc.defaultQty({ unit: 'item', lastQty: null }), 1);
+  assert.equal(Calc.defaultQty({ unit: 'item', lastQty: 0 }), 1);
+});
+
+test('macroStatus', () => {
+  assert.equal(Calc.macroStatus({ total: null, known: 0 }, 3), 'none');
+  assert.equal(Calc.macroStatus({ total: 5, known: 2 }, 3), 'partial');
+  assert.equal(Calc.macroStatus({ total: 5, known: 3 }, 3), 'complete');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

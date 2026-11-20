@@ -1,14 +1,20 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '0.1.0';
+  const APP_VERSION = '0.2.0';
   const STORAGE_KEY = 'batchKcal.v1';
   const BANNER_SCREENS = ['today', 'settings'];
+  const RECENTS_LIMIT = 20;
+  const TOAST_MS = 5000;
+  const MACROS = ['protein', 'carbs', 'fat'];
+  const MACRO_NAMES = { protein: 'Protein', carbs: 'Carbs', fat: 'Fat' };
 
   let state = Calc.emptyData();
   // True when stored data exists but could not be read. Saving is blocked so it is never overwritten.
   let readOnly = false;
   let currentScreen = 'today';
+  let todayKey = Calc.dateKey(new Date());
+  let selectedDate = todayKey;
 
   const $ = (id) => document.getElementById(id);
 
@@ -36,12 +42,15 @@
   }
 
   function save() {
-    if (readOnly) return false;
+    if (readOnly) {
+      toast('Not saved: your stored data could not be read. Import a backup in Settings first.');
+      return false;
+    }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       return true;
     } catch (e) {
-      showMessage('Could not save: this phone’s storage for the app is full. Export a backup, then free some space.', true);
+      toast('Could not save: storage for the app is full. Export a backup, then free some space.');
       return false;
     }
   }
@@ -62,23 +71,25 @@
     }
   }
 
-  // ---------- Messages ----------
+  // ---------- Small DOM helpers ----------
 
-  function showLoadError(text) {
-    const el = $('load-error');
-    el.textContent = text;
-    el.hidden = false;
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
   }
 
-  function showMessage(text, isError) {
-    const el = $('settings-message');
-    el.textContent = text;
-    el.classList.toggle('error', !!isError);
-    el.hidden = false;
+  function macroLine(v) {
+    return 'P ' + Calc.fmtMacro(v.protein) + ' · C ' + Calc.fmtMacro(v.carbs) + ' · F ' + Calc.fmtMacro(v.fat);
   }
 
-  function clearMessage() {
-    $('settings-message').hidden = true;
+  function valuesSummary(v) {
+    return Calc.fmtKcal(v.kcal) + ' kcal · ' + macroLine(v);
+  }
+
+  function unitText(unit) {
+    return unit === '100g' ? 'per 100 g' : 'per item';
   }
 
   function plural(n, one, many) {
@@ -89,6 +100,328 @@
     return plural(c.foods, 'food', 'foods') + ', ' +
       plural(c.recipes, 'recipe', 'recipes') + ' and ' +
       plural(c.entries, 'log entry', 'log entries');
+  }
+
+  // ---------- Messages and toast ----------
+
+  function showLoadError(text) {
+    const node = $('load-error');
+    node.textContent = text;
+    node.hidden = false;
+  }
+
+  function showMessage(text, isError) {
+    const node = $('settings-message');
+    node.textContent = text;
+    node.classList.toggle('error', !!isError);
+    node.hidden = false;
+  }
+
+  function clearMessage() {
+    $('settings-message').hidden = true;
+  }
+
+  let toastTimer = null;
+  let toastUndo = null;
+
+  function toast(text, undo) {
+    clearTimeout(toastTimer);
+    $('toast-text').textContent = text;
+    toastUndo = undo || null;
+    $('toast-undo').hidden = !undo;
+    $('toast').hidden = false;
+    toastTimer = setTimeout(hideToast, TOAST_MS);
+  }
+
+  function hideToast() {
+    clearTimeout(toastTimer);
+    $('toast').hidden = true;
+    toastUndo = null;
+  }
+
+  // ---------- Dialog helpers ----------
+
+  function formError(form, text) {
+    const node = form.querySelector('.message.error');
+    node.textContent = text || '';
+    node.hidden = !text;
+    return false;
+  }
+
+  function openDialog(dialog, focusEl) {
+    formError(dialog.querySelector('form'), '');
+    dialog.showModal();
+    if (focusEl) focusEl.focus();
+  }
+
+  // Reads a required number field. Returns the number, or undefined after showing an error.
+  function readRequired(form, input, what, allowZero) {
+    const n = Calc.parseNumber(input.value);
+    if (n === null) { formError(form, 'Enter the ' + what + '.'); input.focus(); return undefined; }
+    if (Number.isNaN(n) || (!allowZero && n === 0)) {
+      formError(form, 'Enter the ' + what + ' as a number' + (allowZero ? '' : ' above 0') + ', for example 150.');
+      input.focus();
+      return undefined;
+    }
+    return n;
+  }
+
+  // Reads optional macro fields with the given id prefix. Returns { protein, carbs, fat } or undefined on error.
+  function readMacros(form, prefix) {
+    const out = {};
+    for (const k of MACROS) {
+      const input = $(prefix + '-' + k);
+      const n = Calc.parseNumber(input.value);
+      if (Number.isNaN(n)) {
+        formError(form, MACRO_NAMES[k] + ' must be a number, or left blank if unknown.');
+        input.focus();
+        return undefined;
+      }
+      out[k] = n;
+    }
+    return out;
+  }
+
+  function numToField(n) {
+    return n === null || n === undefined ? '' : String(n);
+  }
+
+  // ---------- Log entries ----------
+
+  function addEntry(fields) {
+    const entry = Object.assign({
+      id: newId(),
+      date: selectedDate,
+      created: Date.now(),
+      name: '',
+      protein: null,
+      carbs: null,
+      fat: null,
+      sourceId: null,
+      amount: '',
+    }, fields);
+    state.entries.push(entry);
+    return entry;
+  }
+
+  function entryName(e) {
+    return e.name || 'Quick add';
+  }
+
+  function afterLog(entry) {
+    save();
+    $('food-search').value = '';
+    showScreen('today');
+    render();
+    toast('Logged ' + entryName(entry) + (entry.amount ? ' (' + entry.amount + ')' : '') + '.', () => {
+      state.entries = state.entries.filter((e) => e.id !== entry.id);
+      save();
+      render();
+    });
+  }
+
+  // ---------- Amount dialog (log a saved food) ----------
+
+  let amountFood = null;
+
+  function openAmount(food) {
+    amountFood = food;
+    $('amount-title').textContent = food.name;
+    $('amount-per').textContent = unitText(food.unit) + ': ' + valuesSummary(food);
+    $('amount-label').textContent = food.unit === '100g' ? 'Amount (g)' : 'Number of items';
+    $('amount-qty').value = Calc.fmtQty(Calc.defaultQty(food));
+    updateAmountPreview();
+    openDialog($('amount-dialog'), $('amount-form').querySelector('[type=submit]'));
+  }
+
+  function updateAmountPreview() {
+    const qty = Calc.parseNumber($('amount-qty').value);
+    $('amount-preview').textContent = qty > 0 ? valuesSummary(Calc.foodValues(amountFood, qty)) : '';
+  }
+
+  function submitAmount(e) {
+    e.preventDefault();
+    const form = $('amount-form');
+    const qty = readRequired(form, $('amount-qty'), 'amount', false);
+    if (qty === undefined) return;
+    const food = amountFood;
+    const entry = addEntry(Object.assign(
+      { name: food.name, source: 'food', sourceId: food.id, amount: Calc.formatAmount(qty, food.unit) },
+      Calc.foodValues(food, qty)
+    ));
+    food.lastUsed = Date.now();
+    food.lastQty = qty;
+    $('amount-dialog').close();
+    afterLog(entry);
+  }
+
+  // ---------- Food dialog (new food, or edit a saved food) ----------
+
+  let editingFood = null; // null = new food mode
+
+  function foodUnit() {
+    return document.querySelector('input[name="food-unit"]:checked').value;
+  }
+
+  function updateFoodLabels() {
+    const unit = foodUnit();
+    $('food-kcal-label').textContent = 'Calories ' + unitText(unit) + ' (kcal)';
+    $('food-qty-label').textContent = unit === '100g' ? 'Amount eaten (g)' : 'Number of items eaten';
+    if (!editingFood && $('food-qty').dataset.touched !== '1') {
+      $('food-qty').value = unit === '100g' ? '100' : '1';
+    }
+    updateFoodPreview();
+  }
+
+  function updateFoodPreview() {
+    if (editingFood) return;
+    const kcal = Calc.parseNumber($('food-kcal').value);
+    const qty = Calc.parseNumber($('food-qty').value);
+    if (!(kcal >= 0) || !(qty > 0)) { $('food-preview').textContent = ''; return; }
+    const vals = { unit: foodUnit(), kcal: kcal };
+    MACROS.forEach((k) => {
+      const n = Calc.parseNumber($('food-' + k).value);
+      vals[k] = Number.isNaN(n) ? null : n;
+    });
+    $('food-preview').textContent = 'Logs ' + valuesSummary(Calc.foodValues(vals, qty));
+  }
+
+  function openFoodDialog(food, prefillName) {
+    editingFood = food || null;
+    const f = food || { name: prefillName || '', unit: '100g', kcal: null, protein: null, carbs: null, fat: null };
+    $('food-title').textContent = food ? 'Edit food' : 'New food';
+    $('food-name').value = f.name;
+    document.querySelector('input[name="food-unit"][value="' + f.unit + '"]').checked = true;
+    $('food-kcal').value = numToField(f.kcal);
+    MACROS.forEach((k) => { $('food-' + k).value = numToField(f[k]); });
+    $('food-log-fields').hidden = !!food;
+    $('food-delete').hidden = !food;
+    $('food-submit').textContent = food ? 'Save' : 'Log';
+    $('food-save').checked = true;
+    $('food-qty').dataset.touched = '';
+    $('food-preview').textContent = '';
+    updateFoodLabels();
+    const focus = food ? $('food-form').querySelector('[data-close]') : (f.name ? $('food-kcal') : $('food-name'));
+    openDialog($('food-dialog'), focus);
+  }
+
+  function submitFood(e) {
+    e.preventDefault();
+    const form = $('food-form');
+    const name = $('food-name').value.trim();
+    if (!name) { formError(form, 'Enter a name for the food.'); $('food-name').focus(); return; }
+    const unit = foodUnit();
+    const kcal = readRequired(form, $('food-kcal'), 'calories', true);
+    if (kcal === undefined) return;
+    const macros = readMacros(form, 'food');
+    if (!macros) return;
+    const values = Object.assign({ name, unit, kcal }, macros);
+
+    if (editingFood) {
+      if (editingFood.unit !== unit) editingFood.lastQty = null;
+      Object.assign(editingFood, values);
+      save();
+      $('food-dialog').close();
+      render();
+      toast('Saved ' + name + '.');
+      return;
+    }
+
+    const qty = readRequired(form, $('food-qty'), unit === '100g' ? 'amount eaten' : 'number of items', false);
+    if (qty === undefined) return;
+    let food = null;
+    if ($('food-save').checked) {
+      food = Object.assign({ id: newId() }, values, { lastUsed: Date.now(), lastQty: qty });
+      state.foods.push(food);
+    }
+    const entry = addEntry(Object.assign(
+      { name, source: 'food', sourceId: food ? food.id : null, amount: Calc.formatAmount(qty, unit) },
+      Calc.foodValues(values, qty)
+    ));
+    $('food-dialog').close();
+    afterLog(entry);
+  }
+
+  function deleteFood() {
+    const food = editingFood;
+    if (!food) return;
+    const index = state.foods.indexOf(food);
+    state.foods.splice(index, 1);
+    save();
+    $('food-dialog').close();
+    render();
+    toast('Deleted ' + food.name + '. Past log entries are unchanged.', () => {
+      state.foods.splice(Math.min(index, state.foods.length), 0, food);
+      save();
+      render();
+    });
+  }
+
+  // ---------- Quick add ----------
+
+  function openQuick() {
+    $('quick-form').reset();
+    openDialog($('quick-dialog'), $('quick-kcal'));
+  }
+
+  function submitQuick(e) {
+    e.preventDefault();
+    const form = $('quick-form');
+    const kcal = readRequired(form, $('quick-kcal'), 'calories', true);
+    if (kcal === undefined) return;
+    const macros = readMacros(form, 'quick');
+    if (!macros) return;
+    const entry = addEntry(Object.assign({ name: $('quick-name').value.trim(), kcal, source: 'quick' }, macros));
+    $('quick-dialog').close();
+    afterLog(entry);
+  }
+
+  // ---------- Edit entry ----------
+
+  let editingEntry = null;
+
+  function openEntry(entry) {
+    editingEntry = entry;
+    $('entry-name').value = entry.name || '';
+    $('entry-kcal').value = numToField(entry.kcal);
+    $('entry-amount').value = entry.amount || '';
+    MACROS.forEach((k) => { $('entry-' + k).value = numToField(entry[k]); });
+    $('entry-date').value = entry.date;
+    openDialog($('entry-dialog'), $('entry-form').querySelector('[data-close]'));
+  }
+
+  function submitEntry(e) {
+    e.preventDefault();
+    const form = $('entry-form');
+    const kcal = readRequired(form, $('entry-kcal'), 'calories', true);
+    if (kcal === undefined) return;
+    const macros = readMacros(form, 'entry');
+    if (!macros) return;
+    const date = $('entry-date').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { formError(form, 'Choose a date.'); return; }
+    Object.assign(editingEntry, macros, {
+      name: $('entry-name').value.trim(),
+      kcal,
+      amount: $('entry-amount').value.trim(),
+      date,
+    });
+    save();
+    $('entry-dialog').close();
+    render();
+    toast(date === selectedDate ? 'Entry saved.' : 'Entry moved to ' + Calc.formatDate(date) + '.');
+  }
+
+  function deleteEntry() {
+    const entry = editingEntry;
+    state.entries = state.entries.filter((x) => x !== entry);
+    save();
+    $('entry-dialog').close();
+    render();
+    toast('Deleted ' + entryName(entry) + '.', () => {
+      state.entries.push(entry);
+      save();
+      render();
+    });
   }
 
   // ---------- Export and import ----------
@@ -170,6 +503,107 @@
     $('backup-banner').hidden = !(stale && BANNER_SCREENS.includes(currentScreen));
   }
 
+  function renderToday() {
+    $('day-title').textContent = Calc.dayTitle(selectedDate, todayKey);
+    const isNamedDay = ['Today', 'Yesterday', 'Tomorrow'].includes(Calc.dayTitle(selectedDate, todayKey));
+    $('day-subtitle').textContent = isNamedDay ? Calc.weekdayDate(selectedDate) : '';
+
+    const entries = Calc.entriesForDate(state.entries, selectedDate);
+    const totals = Calc.sumEntries(entries);
+    $('total-kcal').textContent = Calc.fmtKcal(totals.kcal);
+
+    const notes = [];
+    MACROS.forEach((k) => {
+      const t = totals[k];
+      $('total-' + k).textContent = t.total === null ? '–' : Calc.fmtMacro(t.total) + ' g';
+      if (Calc.macroStatus(t, totals.count) === 'partial') {
+        notes.push(MACRO_NAMES[k] + ' from ' + t.known + ' of ' + totals.count + ' entries');
+      }
+    });
+    $('macro-note').textContent = notes.join('. ') + (notes.length ? '.' : '');
+    $('macro-note').hidden = notes.length === 0;
+
+    const list = $('entry-list');
+    list.replaceChildren();
+    entries.forEach((entry) => {
+      const li = el('li');
+      const btn = el('button', 'row');
+      btn.type = 'button';
+      const main = el('span', 'row-main');
+      main.append(el('span', 'row-title', entryName(entry)));
+      const sub = [entry.amount, macroLine(entry)].filter(Boolean).join(' · ');
+      main.append(el('span', 'row-sub', sub));
+      btn.append(main, el('span', 'row-kcal', Calc.fmtKcal(entry.kcal) + ' kcal'));
+      btn.addEventListener('click', () => openEntry(entry));
+      li.append(btn);
+      list.append(li);
+    });
+    $('entry-empty').hidden = entries.length > 0;
+  }
+
+  function foodRow(food, onClick, extra) {
+    const li = el('li');
+    const btn = el('button', 'row');
+    btn.type = 'button';
+    const main = el('span', 'row-main');
+    main.append(el('span', 'row-title', food.name));
+    main.append(el('span', 'row-sub', unitText(food.unit) + ' · ' + macroLine(food)));
+    btn.append(main, el('span', 'row-kcal', extra));
+    btn.addEventListener('click', onClick);
+    li.append(btn);
+    return li;
+  }
+
+  function renderAdd() {
+    const title = Calc.dayTitle(selectedDate, todayKey);
+    const named = ['Today', 'Yesterday', 'Tomorrow'].includes(title);
+    $('add-date-note').textContent = 'Adding to ' + (named ? title.toLowerCase() : title) + '.';
+    const query = $('food-search').value.trim();
+    let foods = Calc.searchRecent(state.foods, query);
+    if (!query) foods = foods.slice(0, RECENTS_LIMIT);
+    $('food-list-heading').textContent = query ? 'Matching foods' : 'Recent';
+    $('food-list-heading').hidden = foods.length === 0;
+
+    const list = $('food-results');
+    list.replaceChildren();
+    foods.forEach((food) => {
+      const extra = Calc.formatAmount(Calc.defaultQty(food), food.unit);
+      list.append(foodRow(food, () => openAmount(food), extra));
+    });
+
+    const empty = $('food-empty');
+    empty.replaceChildren();
+    if (foods.length === 0) {
+      if (query) {
+        empty.append(el('p', null, 'No saved foods match “' + query + '”.'));
+        const btn = el('button', 'btn btn-primary', 'Add “' + query + '” as a new food');
+        btn.type = 'button';
+        btn.addEventListener('click', () => openFoodDialog(null, query));
+        empty.append(btn);
+      } else {
+        empty.append(el('p', null, 'No saved foods yet. Tap New food to add one; it will appear here next time.'));
+      }
+    }
+    empty.hidden = foods.length > 0;
+  }
+
+  function renderLibrary() {
+    const query = $('library-search').value.trim();
+    const foods = Calc.searchByName(state.foods, query);
+    const list = $('library-list');
+    list.replaceChildren();
+    foods.forEach((food) => {
+      list.append(foodRow(food, () => openFoodDialog(food), Calc.fmtKcal(food.kcal) + ' kcal'));
+    });
+    const empty = $('library-empty');
+    if (state.foods.length === 0) {
+      empty.textContent = 'No saved foods yet. Foods you save when adding them will appear here.';
+    } else {
+      empty.textContent = 'No saved foods match “' + query + '”.';
+    }
+    empty.hidden = foods.length > 0;
+  }
+
   function renderSettings() {
     const last = state.settings.lastBackup;
     $('last-backup').textContent = last ? Calc.formatDate(Calc.dateKey(new Date(last))) : 'Never';
@@ -178,14 +612,17 @@
   }
 
   function render() {
+    renderToday();
+    renderAdd();
+    renderLibrary();
     renderSettings();
     renderBanner();
   }
 
   function showScreen(name) {
     currentScreen = name;
-    document.querySelectorAll('.screen').forEach((el) => {
-      el.hidden = el.dataset.screen !== name;
+    document.querySelectorAll('.screen').forEach((node) => {
+      node.hidden = node.dataset.screen !== name;
     });
     document.querySelectorAll('.tabbar [data-tab]').forEach((btn) => {
       if (btn.dataset.tab === name) {
@@ -196,6 +633,21 @@
     });
     renderBanner();
     window.scrollTo(0, 0);
+  }
+
+  function setDate(key) {
+    selectedDate = key;
+    renderToday();
+    renderAdd();
+  }
+
+  // If the app was left open past midnight and was showing "today", move it to the new today.
+  function checkDayChange() {
+    const now = Calc.dateKey(new Date());
+    if (now === todayKey) return;
+    if (selectedDate === todayKey) selectedDate = now;
+    todayKey = now;
+    render();
   }
 
   // ---------- Start ----------
@@ -209,6 +661,44 @@
       if (btn) showScreen(btn.dataset.tab);
     });
     $('backup-banner').addEventListener('click', () => showScreen('settings'));
+
+    // Today
+    $('prev-day').addEventListener('click', () => setDate(Calc.addDays(selectedDate, -1)));
+    $('next-day').addEventListener('click', () => setDate(Calc.addDays(selectedDate, 1)));
+    $('day-title-btn').addEventListener('click', () => setDate(todayKey));
+    $('today-add').addEventListener('click', () => showScreen('add'));
+
+    // Add
+    $('food-search').addEventListener('input', renderAdd);
+    $('new-food-btn').addEventListener('click', () => openFoodDialog(null, $('food-search').value.trim()));
+    $('quick-add-btn').addEventListener('click', openQuick);
+
+    // Library
+    $('library-search').addEventListener('input', renderLibrary);
+
+    // Dialogs
+    document.querySelectorAll('dialog [data-close]').forEach((btn) => {
+      btn.addEventListener('click', () => btn.closest('dialog').close());
+    });
+    $('amount-form').addEventListener('submit', submitAmount);
+    $('amount-qty').addEventListener('input', updateAmountPreview);
+    $('food-form').addEventListener('submit', submitFood);
+    $('food-form').addEventListener('input', updateFoodPreview);
+    $('food-qty').addEventListener('input', () => { $('food-qty').dataset.touched = '1'; });
+    document.querySelectorAll('input[name="food-unit"]').forEach((r) => r.addEventListener('change', updateFoodLabels));
+    $('food-delete').addEventListener('click', deleteFood);
+    $('quick-form').addEventListener('submit', submitQuick);
+    $('entry-form').addEventListener('submit', submitEntry);
+    $('entry-delete').addEventListener('click', deleteEntry);
+
+    // Toast
+    $('toast-undo').addEventListener('click', () => {
+      const undo = toastUndo;
+      hideToast();
+      if (undo) undo();
+    });
+
+    // Settings
     $('export-btn').addEventListener('click', () => {
       exportData().catch((e) => showMessage('Export failed: ' + e.message, true));
     });
@@ -219,10 +709,14 @@
       if (file) importFile(file);
     });
 
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkDayChange();
+    });
+
     render();
   }
 
-  // Exposed for later stages and console debugging.
+  // Exposed for console debugging.
   window.App = { get state() { return state; }, save, render, newId };
 
   init();
