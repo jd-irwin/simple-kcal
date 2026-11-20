@@ -52,10 +52,95 @@
     return out;
   }
 
-  // Values for qty of a food. unit '100g': qty is grams. unit 'item': qty is a count.
-  function foodValues(food, qty) {
-    const factor = food.unit === '100g' ? qty / 100 : qty;
-    return scaleValues(food, factor);
+  function orNull(v) {
+    return isNum(v) ? v : null;
+  }
+
+  // ---------- Log entries ----------
+  // An entry stores quantity, unit, perAmount and the nutrition for perAmount units.
+  // Totals are always value x quantity / perAmount and are never stored.
+
+  // Entry unit for a saved food's unit: '100g' -> 'g', 'item' -> 'item'.
+  function foodEntryUnit(food) {
+    return food.unit === '100g' ? 'g' : 'item';
+  }
+
+  function entryTotals(entry) {
+    if (!isNum(entry.quantity) || !isNum(entry.perAmount) || entry.perAmount <= 0) {
+      return { kcal: null, protein: null, carbs: null, fat: null };
+    }
+    return scaleValues(entry, entry.quantity / entry.perAmount);
+  }
+
+  // Entry fields (without id, date or created) for quantity of a food.
+  // sourceId is the saved food's id, or null for an unsaved food.
+  function entryFromFood(food, quantity, sourceId) {
+    const unit = foodEntryUnit(food);
+    return {
+      name: food.name,
+      source: 'food',
+      sourceId: sourceId || null,
+      quantity: quantity,
+      unit: unit,
+      perAmount: unit === 'g' ? 100 : 1,
+      kcal: food.kcal,
+      protein: orNull(food.protein),
+      carbs: orNull(food.carbs),
+      fat: orNull(food.fat),
+    };
+  }
+
+  // Entry fields for a quick add. Its values are the totals.
+  function entryFromQuick(v) {
+    return {
+      name: v.name || '',
+      source: 'quick',
+      sourceId: null,
+      quantity: 1,
+      unit: 'quick',
+      perAmount: 1,
+      kcal: v.kcal,
+      protein: orNull(v.protein),
+      carbs: orNull(v.carbs),
+      fat: orNull(v.fat),
+    };
+  }
+
+  // A copy of the entry with a new quantity. Per-unit values are untouched; nothing is looked up.
+  function setEntryQuantity(entry, quantity) {
+    return Object.assign({}, entry, { quantity: quantity });
+  }
+
+  // True if the entry was logged from this saved food and its unit still matches the food's.
+  function isLinked(entry, food) {
+    return entry.source === 'food' && !!entry.sourceId && entry.sourceId === food.id &&
+      entry.unit === foodEntryUnit(food);
+  }
+
+  function linkedEntryCounts(entries, food, todayKey) {
+    let all = 0;
+    let today = 0;
+    entries.forEach((e) => {
+      if (!isLinked(e, food)) return;
+      all++;
+      if (e.date === todayKey) today++;
+    });
+    return { today: today, all: all };
+  }
+
+  // scope: 'none', 'today' or 'all'. Copies the food's per-unit values onto linked entries,
+  // leaving quantities alone. Returns a new array; other entries are returned unchanged.
+  function applyFoodToEntries(entries, food, scope, todayKey) {
+    return entries.map((e) => {
+      if (scope === 'none' || !isLinked(e, food)) return e;
+      if (scope === 'today' && e.date !== todayKey) return e;
+      return Object.assign({}, e, {
+        kcal: food.kcal,
+        protein: orNull(food.protein),
+        carbs: orNull(food.carbs),
+        fat: orNull(food.fat),
+      });
+    });
   }
 
   // ---------- Daily totals ----------
@@ -65,11 +150,12 @@
   function sumEntries(entries) {
     const result = { count: entries.length, kcal: 0 };
     MACROS.forEach((k) => { result[k] = { total: null, known: 0 }; });
-    entries.forEach((e) => {
-      if (isNum(e.kcal)) result.kcal += e.kcal;
+    entries.forEach((entry) => {
+      const t = entryTotals(entry);
+      if (isNum(t.kcal)) result.kcal += t.kcal;
       MACROS.forEach((k) => {
-        if (isNum(e[k])) {
-          result[k].total = (result[k].total || 0) + e[k];
+        if (isNum(t[k])) {
+          result[k].total = (result[k].total || 0) + t[k];
           result[k].known += 1;
         }
       });
@@ -156,10 +242,16 @@
     return String(Math.round(n * 100) / 100);
   }
 
-  // '150 g', '1 item', '2.5 items'
+  // Entry unit + quantity for display: '150 g', '1 item', '2.5 items', '1.5 portions', '' for quick add.
   function formatAmount(qty, unit) {
-    if (unit === '100g') return fmtQty(qty) + ' g';
-    return fmtQty(qty) + (qty === 1 ? ' item' : ' items');
+    if (unit === 'g') return fmtQty(qty) + ' g';
+    if (unit === 'item') return fmtQty(qty) + (qty === 1 ? ' item' : ' items');
+    if (unit === 'portion') return fmtQty(qty) + (qty === 1 ? ' portion' : ' portions');
+    return '';
+  }
+
+  function formatEntryAmount(entry) {
+    return formatAmount(entry.quantity, entry.unit);
   }
 
   // ---------- Input parsing ----------
@@ -204,9 +296,17 @@
     return items.filter((it) => matchesQuery(it.name, query || '')).sort(byName);
   }
 
-  // Starting amount when logging a saved food: the last amount used, or 100 g / 1 item.
-  function defaultQty(food) {
-    if (isNum(food.lastQty) && food.lastQty > 0) return food.lastQty;
+  // Starting amount when logging a saved food: the quantity of the most recent linked
+  // entry, or 100 g / 1 item if it has never been logged.
+  function defaultQty(food, entries) {
+    let latest = null;
+    (entries || []).forEach((e) => {
+      if (isLinked(e, food) && isNum(e.quantity) && e.quantity > 0 &&
+          (!latest || (e.created || 0) > (latest.created || 0))) {
+        latest = e;
+      }
+    });
+    if (latest) return latest.quantity;
     return food.unit === '100g' ? 100 : 1;
   }
 
@@ -218,7 +318,7 @@
 
   // ---------- Data, migration, backup ----------
 
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
   const APP_ID = 'batch-kcal';
 
   function emptyData() {
@@ -233,6 +333,37 @@
 
   // migrations[n] takes data at version n and returns data at version n + 1.
   const migrations = {};
+
+  // v1 entries stored scaled totals plus amount text ('150 g', '2 items').
+  // v2 entries store quantity, unit, perAmount and per-unit values.
+  function migrateEntryV1(e) {
+    const out = Object.assign({}, e);
+    delete out.amount;
+    const totals = { kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat };
+    if (e.source !== 'quick') {
+      const m = /^\s*(\d+(?:\.\d+)?)\s*(g|items?|portions?)\s*$/i.exec(e.amount || '');
+      const q = m ? Number(m[1]) : 0;
+      if (q > 0) {
+        const word = m[2].toLowerCase();
+        const unit = word === 'g' ? 'g' : word.startsWith('item') ? 'item' : 'portion';
+        const perAmount = unit === 'g' ? 100 : 1;
+        return Object.assign(out, { quantity: q, unit: unit, perAmount: perAmount },
+          scaleValues(totals, perAmount / q));
+      }
+    }
+    // Quick add, or an amount that cannot be read: keep the totals as they are.
+    return Object.assign(out, { quantity: 1, unit: 'quick', perAmount: 1 }, scaleValues(totals, 1));
+  }
+
+  migrations[1] = function (d) {
+    return Object.assign({}, d, {
+      schemaVersion: 2,
+      foods: Array.isArray(d.foods)
+        ? d.foods.map((f) => { const c = Object.assign({}, f); delete c.lastQty; return c; })
+        : d.foods,
+      entries: Array.isArray(d.entries) ? d.entries.map(migrateEntryV1) : d.entries,
+    });
+  };
 
   function migrate(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -308,9 +439,10 @@
 
   const Calc = {
     dateKey, addDays, formatDate, weekdayDate, dayTitle,
-    fmtQty, formatAmount, parseNumber,
+    fmtQty, formatAmount, formatEntryAmount, parseNumber,
     entriesForDate, searchRecent, searchByName, defaultQty, macroStatus,
-    scaleNullable, foodValues,
+    scaleNullable, foodEntryUnit, entryTotals, entryFromFood, entryFromQuick, setEntryQuantity,
+    linkedEntryCounts, applyFoodToEntries,
     sumEntries,
     recipeTotals, recipePerGram, recipePerPortion, recipeServing,
     fmtKcal, fmtMacro,

@@ -70,34 +70,136 @@ test('formatDate gives DD/MM/YYYY', () => {
   assert.equal(Calc.formatDate('2026-07-05'), '05/07/2026');
 });
 
-// ---------- Foods ----------
+// ---------- Log entries ----------
 
-test('foodValues per 100g scales by grams and keeps null macros', () => {
-  const food = { unit: '100g', kcal: 380, protein: 13, carbs: null, fat: 7 };
-  const v = Calc.foodValues(food, 150);
-  approx(v.kcal, 570);
-  approx(v.protein, 19.5);
-  assert.equal(v.carbs, null);
-  approx(v.fat, 10.5);
+const oats = { id: 'oats', name: 'Oats', unit: '100g', kcal: 380, protein: 13, carbs: null, fat: 7 };
+const egg = { id: 'egg', name: 'Egg', unit: 'item', kcal: 72, protein: 6.3, carbs: 0.4, fat: 4.8 };
+
+// A quick-add-shaped entry whose values are its totals.
+function q(v) {
+  return Object.assign({ quantity: 1, unit: 'quick', perAmount: 1, protein: null, carbs: null, fat: null }, v);
+}
+
+test('entryFromFood per 100 g copies per-unit values with perAmount 100', () => {
+  const e = Calc.entryFromFood(oats, 150, 'oats');
+  assert.deepEqual(e, {
+    name: 'Oats', source: 'food', sourceId: 'oats', quantity: 150, unit: 'g', perAmount: 100,
+    kcal: 380, protein: 13, carbs: null, fat: 7,
+  });
 });
 
-test('foodValues per item scales by count', () => {
-  const food = { unit: 'item', kcal: 72, protein: 6.3, carbs: 0.4, fat: 4.8 };
-  const v = Calc.foodValues(food, 2);
-  approx(v.kcal, 144);
-  approx(v.protein, 12.6);
+test('entryTotals per 100 g scales by quantity / 100 and keeps null macros', () => {
+  const t = Calc.entryTotals(Calc.entryFromFood(oats, 150, 'oats'));
+  approx(t.kcal, 570);
+  approx(t.protein, 19.5);
+  assert.equal(t.carbs, null);
+  approx(t.fat, 10.5);
+});
+
+test('entryTotals per item scales by count', () => {
+  const e = Calc.entryFromFood(egg, 2, 'egg');
+  assert.equal(e.unit, 'item');
+  assert.equal(e.perAmount, 1);
+  const t = Calc.entryTotals(e);
+  approx(t.kcal, 144);
+  approx(t.protein, 12.6);
+});
+
+test('unsaved food entry has no sourceId', () => {
+  assert.equal(Calc.entryFromFood(oats, 50).sourceId, null);
+});
+
+test('changing quantity rescales without changing per-unit values', () => {
+  const e = Calc.entryFromFood(oats, 150, 'oats');
+  const e2 = Calc.setEntryQuantity(e, 200);
+  assert.equal(e.quantity, 150); // original untouched
+  assert.equal(e2.quantity, 200);
+  assert.equal(e2.kcal, 380);
+  approx(Calc.entryTotals(e2).kcal, 760);
+  approx(Calc.entryTotals(e2).kcal / Calc.entryTotals(e).kcal, 4 / 3);
+});
+
+test('quick add totals equal its values', () => {
+  const e = Calc.entryFromQuick({ name: '', kcal: 250, protein: 10, carbs: null, fat: undefined });
+  assert.equal(e.unit, 'quick');
+  assert.equal(e.quantity, 1);
+  assert.equal(e.perAmount, 1);
+  assert.equal(e.fat, null);
+  assert.deepEqual(Calc.entryTotals(e), { kcal: 250, protein: 10, carbs: null, fat: null });
+});
+
+test('formatEntryAmount', () => {
+  assert.equal(Calc.formatEntryAmount(Calc.entryFromFood(oats, 150)), '150 g');
+  assert.equal(Calc.formatEntryAmount(Calc.entryFromFood(egg, 1)), '1 item');
+  assert.equal(Calc.formatEntryAmount({ quantity: 1.5, unit: 'portion' }), '1.5 portions');
+  assert.equal(Calc.formatEntryAmount(Calc.entryFromQuick({ kcal: 1 })), '');
+});
+
+test('linkedEntryCounts and applyFoodToEntries touch linked entries only', () => {
+  const today = '2026-11-20';
+  const entries = [
+    Object.assign({ id: 1, date: today }, Calc.entryFromFood(oats, 50, 'oats')),
+    Object.assign({ id: 2, date: '2026-11-19' }, Calc.entryFromFood(oats, 80, 'oats')),
+    Object.assign({ id: 3, date: today }, Calc.entryFromFood(oats, 60)),            // unsaved
+    Object.assign({ id: 4, date: today }, Calc.entryFromQuick({ kcal: 100 })),      // quick
+    Object.assign({ id: 5, date: today }, Calc.entryFromFood(egg, 2, 'egg')),       // other food
+  ];
+  assert.deepEqual(Calc.linkedEntryCounts(entries, oats, today), { today: 1, all: 2 });
+
+  const fixed = Object.assign({}, oats, { kcal: 370, carbs: 60 });
+
+  const none = Calc.applyFoodToEntries(entries, fixed, 'none', today);
+  assert.deepEqual(none, entries);
+
+  const t = Calc.applyFoodToEntries(entries, fixed, 'today', today);
+  assert.equal(t[0].kcal, 370);
+  assert.equal(t[0].carbs, 60);
+  assert.equal(t[0].quantity, 50);
+  assert.equal(t[1].kcal, 380); // other day untouched
+  assert.equal(t[2], entries[2]);
+  assert.equal(t[3], entries[3]);
+  assert.equal(t[4], entries[4]);
+  assert.equal(entries[0].kcal, 380); // input not mutated
+
+  const all = Calc.applyFoodToEntries(entries, fixed, 'all', today);
+  assert.equal(all[0].kcal, 370);
+  assert.equal(all[1].kcal, 370);
+  assert.equal(all[1].quantity, 80);
+  assert.equal(all[2].kcal, 380);
+});
+
+test('applyFoodToEntries skips entries whose unit no longer matches the food', () => {
+  const entries = [Object.assign({ id: 1, date: '2026-11-20' }, Calc.entryFromFood(oats, 50, 'oats'))];
+  const nowPerItem = Object.assign({}, oats, { unit: 'item', kcal: 150 });
+  assert.deepEqual(Calc.linkedEntryCounts(entries, nowPerItem, '2026-11-20'), { today: 0, all: 0 });
+  assert.equal(Calc.applyFoodToEntries(entries, nowPerItem, 'all', '2026-11-20')[0].kcal, 380);
 });
 
 // ---------- Daily totals ----------
 
+test('sumEntries uses quantity / perAmount', () => {
+  const entries = [
+    Calc.entryFromFood(oats, 50, 'oats'),   // 190 kcal, P 6.5, C -, F 3.5
+    Calc.entryFromFood(egg, 2, 'egg'),      // 144 kcal, P 12.6, C 0.8, F 9.6
+    Calc.entryFromQuick({ kcal: 100 }),     // 100 kcal
+  ];
+  const t = Calc.sumEntries(entries);
+  approx(t.kcal, 434);
+  approx(t.protein.total, 19.1);
+  assert.equal(t.protein.known, 2);
+  approx(t.carbs.total, 0.8);
+  assert.equal(t.carbs.known, 1);
+  approx(t.fat.total, 13.1);
+});
+
 test('sumEntries: partial macros report known count', () => {
   const entries = [
-    { kcal: 100, protein: 10, carbs: null, fat: 1 },
-    { kcal: 200, protein: 5, carbs: null, fat: null },
-    { kcal: 50, protein: null, carbs: null, fat: null },
-    { kcal: 300, protein: 20, carbs: null, fat: 2 },
-    { kcal: 150, protein: null, carbs: null, fat: null },
-    { kcal: 80, protein: 1.5, carbs: null, fat: null },
+    q({ kcal: 100, protein: 10, carbs: null, fat: 1 }),
+    q({ kcal: 200, protein: 5, carbs: null, fat: null }),
+    q({ kcal: 50, protein: null, carbs: null, fat: null }),
+    q({ kcal: 300, protein: 20, carbs: null, fat: 2 }),
+    q({ kcal: 150, protein: null, carbs: null, fat: null }),
+    q({ kcal: 80, protein: 1.5, carbs: null, fat: null }),
   ];
   const t = Calc.sumEntries(entries);
   assert.equal(t.count, 6);
@@ -109,13 +211,13 @@ test('sumEntries: partial macros report known count', () => {
 });
 
 test('sumEntries: no known macro gives null, never zero', () => {
-  const t = Calc.sumEntries([{ kcal: 100, protein: null, carbs: null, fat: null }]);
+  const t = Calc.sumEntries([q({ kcal: 100 })]);
   assert.equal(t.carbs.total, null);
   assert.equal(t.carbs.known, 0);
 });
 
 test('sumEntries: a known zero counts as known', () => {
-  const t = Calc.sumEntries([{ kcal: 10, protein: 0, carbs: null, fat: null }]);
+  const t = Calc.sumEntries([q({ kcal: 10, protein: 0 })]);
   assert.equal(t.protein.total, 0);
   assert.equal(t.protein.known, 1);
 });
@@ -202,7 +304,7 @@ test('fmtKcal and fmtMacro round for display and show a dash for null', () => {
 // ---------- Data and backup ----------
 
 test('migrate passes current data through and fills settings defaults', () => {
-  const d = Calc.migrate({ schemaVersion: 1, foods: [], recipes: [], entries: [] });
+  const d = Calc.migrate({ schemaVersion: 2, foods: [], recipes: [], entries: [] });
   assert.equal(d.schemaVersion, Calc.SCHEMA_VERSION);
   assert.deepEqual(d.settings, { lastBackup: null, persistRequested: false });
 });
@@ -212,13 +314,63 @@ test('migrate rejects newer versions and junk', () => {
   assert.throws(() => Calc.migrate(null));
   assert.throws(() => Calc.migrate([]));
   assert.throws(() => Calc.migrate({ foods: [] }), /schema version/);
-  assert.throws(() => Calc.migrate({ schemaVersion: 1, foods: [], recipes: [] }), /entries/);
+  assert.throws(() => Calc.migrate({ schemaVersion: 2, foods: [], recipes: [] }), /entries/);
+});
+
+test('migrate v1 -> v2 converts entries to quantity and per-unit values', () => {
+  const v1 = {
+    schemaVersion: 1,
+    foods: [{ id: 'oats', name: 'Oats', unit: '100g', kcal: 380, protein: 13, carbs: null, fat: 7, lastUsed: 5, lastQty: 150 }],
+    recipes: [],
+    entries: [
+      { id: 'a', date: '2026-11-20', created: 1, name: 'Oats', kcal: 570, protein: 19.5, carbs: null, fat: 10.5, source: 'food', sourceId: 'oats', amount: '150 g' },
+      { id: 'b', date: '2026-11-20', created: 2, name: 'Egg', kcal: 144, protein: 12.6, carbs: 0.8, fat: 9.6, source: 'food', sourceId: null, amount: '2 items' },
+      { id: 'c', date: '2026-11-20', created: 3, name: 'Egg', kcal: 72, protein: null, carbs: null, fat: null, source: 'food', sourceId: null, amount: '1 item' },
+      { id: 'd', date: '2026-11-20', created: 4, name: '', kcal: 250, protein: 10, carbs: null, fat: null, source: 'quick', sourceId: null, amount: '' },
+      { id: 'e', date: '2026-11-20', created: 5, name: 'Odd', kcal: 99, protein: null, carbs: null, fat: null, source: 'food', sourceId: null, amount: 'a bowl' },
+    ],
+    settings: { lastBackup: null, persistRequested: true },
+  };
+  const before = Calc.sumEntries(v1.entries.map((e) => q(e)));
+  const d = Calc.migrate(v1);
+  assert.equal(d.schemaVersion, 2);
+  assert.equal('lastQty' in d.foods[0], false);
+  assert.equal(d.foods[0].lastUsed, 5);
+  d.entries.forEach((e) => assert.equal('amount' in e, false));
+
+  const [a, b, c, dq, odd] = d.entries;
+  assert.equal(a.unit, 'g'); assert.equal(a.quantity, 150); assert.equal(a.perAmount, 100);
+  approx(a.kcal, 380); approx(a.protein, 13); assert.equal(a.carbs, null); approx(a.fat, 7);
+  assert.equal(a.sourceId, 'oats');
+  assert.equal(b.unit, 'item'); assert.equal(b.quantity, 2); approx(b.kcal, 72);
+  assert.equal(c.unit, 'item'); assert.equal(c.quantity, 1); approx(c.kcal, 72);
+  assert.equal(dq.unit, 'quick'); assert.equal(dq.kcal, 250); assert.equal(dq.protein, 10);
+  assert.equal(odd.unit, 'quick'); assert.equal(odd.kcal, 99); assert.equal(odd.source, 'food');
+
+  // Day totals are unchanged by the migration.
+  const after = Calc.sumEntries(d.entries);
+  approx(after.kcal, before.kcal);
+  approx(after.protein.total, before.protein.total);
+  assert.equal(after.protein.known, before.protein.known);
+  approx(after.fat.total, before.fat.total);
+});
+
+test('a v1 backup file imports as v2', () => {
+  const text = JSON.stringify({
+    app: 'batch-kcal', schemaVersion: 1, exportedAt: '2026-11-20T10:00:00.000Z',
+    foods: [], recipes: [],
+    entries: [{ id: 'a', date: '2026-11-20', created: 1, name: 'Oats', kcal: 190, protein: null, carbs: null, fat: null, source: 'food', sourceId: null, amount: '50 g' }],
+  });
+  const r = Calc.parseImport(text);
+  assert.equal(r.data.schemaVersion, 2);
+  assert.equal(r.data.entries[0].quantity, 50);
+  approx(Calc.entryTotals(r.data.entries[0]).kcal, 190);
 });
 
 test('export then import round-trips', () => {
   const data = Calc.emptyData();
   data.foods.push({ id: 'a1', name: 'Oats', unit: '100g', kcal: 380, protein: 13, carbs: 60, fat: 7, lastUsed: 1 });
-  data.entries.push({ id: 'e1', date: '2026-07-15', created: 1, name: 'Oats', kcal: 190, protein: 6.5, carbs: 30, fat: 3.5, source: 'food', sourceId: 'a1', amount: '50 g' });
+  data.entries.push(Object.assign({ id: 'e1', date: '2026-07-15', created: 1 }, Calc.entryFromFood(data.foods[0], 50, 'a1')));
   const text = JSON.stringify(Calc.buildExport(data, '2026-07-15T10:00:00.000Z'));
   const r = Calc.parseImport(text);
   assert.deepEqual(r.counts, { foods: 1, recipes: 0, entries: 1 });
@@ -230,7 +382,7 @@ test('export then import round-trips', () => {
 test('parseImport gives clear errors', () => {
   assert.throws(() => Calc.parseImport('not json'), /could not be read/);
   assert.throws(() => Calc.parseImport('{"foo":1}'), /not a Batch kcal backup/);
-  assert.throws(() => Calc.parseImport('{"app":"batch-kcal","schemaVersion":1,"foods":[],"recipes":[]}'), /entries/);
+  assert.throws(() => Calc.parseImport('{"app":"batch-kcal","schemaVersion":2,"foods":[],"recipes":[]}'), /entries/);
 });
 
 test('isBackupStale at the 7-day boundary', () => {
@@ -254,7 +406,9 @@ test('weekdayDate and dayTitle', () => {
 });
 
 test('formatAmount', () => {
-  assert.equal(Calc.formatAmount(150, '100g'), '150 g');
+  assert.equal(Calc.formatAmount(150, 'g'), '150 g');
+  assert.equal(Calc.formatAmount(1, 'portion'), '1 portion');
+  assert.equal(Calc.formatAmount(1, 'quick'), '');
   assert.equal(Calc.formatAmount(1, 'item'), '1 item');
   assert.equal(Calc.formatAmount(2.5, 'item'), '2.5 items');
   assert.equal(Calc.formatAmount(1 / 3, 'item'), '0.33 items');
@@ -297,11 +451,17 @@ test('searchRecent and searchByName', () => {
   assert.deepEqual(Calc.searchByName(foods, 'zzz'), []);
 });
 
-test('defaultQty uses last amount, else 100 g or 1 item', () => {
-  assert.equal(Calc.defaultQty({ unit: '100g', lastQty: 45 }), 45);
-  assert.equal(Calc.defaultQty({ unit: '100g' }), 100);
-  assert.equal(Calc.defaultQty({ unit: 'item', lastQty: null }), 1);
-  assert.equal(Calc.defaultQty({ unit: 'item', lastQty: 0 }), 1);
+test('defaultQty uses the latest linked entry, else 100 g or 1 item', () => {
+  const entries = [
+    Object.assign({ created: 10 }, Calc.entryFromFood(oats, 45, 'oats')),
+    Object.assign({ created: 30 }, Calc.entryFromFood(oats, 60, 'oats')),
+    Object.assign({ created: 20 }, Calc.entryFromFood(oats, 80, 'oats')),
+    Object.assign({ created: 40 }, Calc.entryFromFood(oats, 999)), // unsaved, not linked
+  ];
+  assert.equal(Calc.defaultQty(oats, entries), 60);
+  assert.equal(Calc.defaultQty(oats, []), 100);
+  assert.equal(Calc.defaultQty(egg, entries), 1);
+  assert.equal(Calc.defaultQty(Object.assign({}, oats, { unit: 'item' }), entries), 1); // unit changed
 });
 
 test('macroStatus', () => {

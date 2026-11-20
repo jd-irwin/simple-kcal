@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '0.2.0';
+  const APP_VERSION = '0.3.0';
   const STORAGE_KEY = 'batchKcal.v1';
   const BANNER_SCREENS = ['today', 'settings'];
   const RECENTS_LIMIT = 20;
@@ -188,20 +188,17 @@
 
   // ---------- Log entries ----------
 
+  // fields come from Calc.entryFromFood / Calc.entryFromQuick.
   function addEntry(fields) {
-    const entry = Object.assign({
-      id: newId(),
-      date: selectedDate,
-      created: Date.now(),
-      name: '',
-      protein: null,
-      carbs: null,
-      fat: null,
-      sourceId: null,
-      amount: '',
-    }, fields);
+    const entry = Object.assign({ id: newId(), date: selectedDate, created: Date.now() }, fields);
     state.entries.push(entry);
     return entry;
+  }
+
+  function qtyLabel(unit) {
+    if (unit === 'g') return 'Amount (g)';
+    if (unit === 'portion') return 'Number of portions';
+    return 'Number of items';
   }
 
   function entryName(e) {
@@ -213,7 +210,8 @@
     $('food-search').value = '';
     showScreen('today');
     render();
-    toast('Logged ' + entryName(entry) + (entry.amount ? ' (' + entry.amount + ')' : '') + '.', () => {
+    const amount = Calc.formatEntryAmount(entry);
+    toast('Logged ' + entryName(entry) + (amount ? ' (' + amount + ')' : '') + '.', () => {
       state.entries = state.entries.filter((e) => e.id !== entry.id);
       save();
       render();
@@ -229,14 +227,15 @@
     $('amount-title').textContent = food.name;
     $('amount-per').textContent = unitText(food.unit) + ': ' + valuesSummary(food);
     $('amount-label').textContent = food.unit === '100g' ? 'Amount (g)' : 'Number of items';
-    $('amount-qty').value = Calc.fmtQty(Calc.defaultQty(food));
+    $('amount-qty').value = Calc.fmtQty(Calc.defaultQty(food, state.entries));
     updateAmountPreview();
     openDialog($('amount-dialog'), $('amount-form').querySelector('[type=submit]'));
   }
 
   function updateAmountPreview() {
     const qty = Calc.parseNumber($('amount-qty').value);
-    $('amount-preview').textContent = qty > 0 ? valuesSummary(Calc.foodValues(amountFood, qty)) : '';
+    $('amount-preview').textContent = qty > 0
+      ? valuesSummary(Calc.entryTotals(Calc.entryFromFood(amountFood, qty))) : '';
   }
 
   function submitAmount(e) {
@@ -245,12 +244,8 @@
     const qty = readRequired(form, $('amount-qty'), 'amount', false);
     if (qty === undefined) return;
     const food = amountFood;
-    const entry = addEntry(Object.assign(
-      { name: food.name, source: 'food', sourceId: food.id, amount: Calc.formatAmount(qty, food.unit) },
-      Calc.foodValues(food, qty)
-    ));
+    const entry = addEntry(Calc.entryFromFood(food, qty, food.id));
     food.lastUsed = Date.now();
-    food.lastQty = qty;
     $('amount-dialog').close();
     afterLog(entry);
   }
@@ -283,7 +278,7 @@
       const n = Calc.parseNumber($('food-' + k).value);
       vals[k] = Number.isNaN(n) ? null : n;
     });
-    $('food-preview').textContent = 'Logs ' + valuesSummary(Calc.foodValues(vals, qty));
+    $('food-preview').textContent = 'Logs ' + valuesSummary(Calc.entryTotals(Calc.entryFromFood(vals, qty)));
   }
 
   function openFoodDialog(food, prefillName) {
@@ -318,7 +313,6 @@
     const values = Object.assign({ name, unit, kcal }, macros);
 
     if (editingFood) {
-      if (editingFood.unit !== unit) editingFood.lastQty = null;
       Object.assign(editingFood, values);
       save();
       $('food-dialog').close();
@@ -331,13 +325,10 @@
     if (qty === undefined) return;
     let food = null;
     if ($('food-save').checked) {
-      food = Object.assign({ id: newId() }, values, { lastUsed: Date.now(), lastQty: qty });
+      food = Object.assign({ id: newId() }, values, { lastUsed: Date.now() });
       state.foods.push(food);
     }
-    const entry = addEntry(Object.assign(
-      { name, source: 'food', sourceId: food ? food.id : null, amount: Calc.formatAmount(qty, unit) },
-      Calc.foodValues(values, qty)
-    ));
+    const entry = addEntry(Calc.entryFromFood(values, qty, food ? food.id : null));
     $('food-dialog').close();
     afterLog(entry);
   }
@@ -371,7 +362,7 @@
     if (kcal === undefined) return;
     const macros = readMacros(form, 'quick');
     if (!macros) return;
-    const entry = addEntry(Object.assign({ name: $('quick-name').value.trim(), kcal, source: 'quick' }, macros));
+    const entry = addEntry(Calc.entryFromQuick(Object.assign({ name: $('quick-name').value.trim(), kcal }, macros)));
     $('quick-dialog').close();
     afterLog(entry);
   }
@@ -380,31 +371,57 @@
 
   let editingEntry = null;
 
+  function isQuickEntry(entry) {
+    return entry.unit === 'quick';
+  }
+
   function openEntry(entry) {
     editingEntry = entry;
+    const quick = isQuickEntry(entry);
     $('entry-name').value = entry.name || '';
-    $('entry-kcal').value = numToField(entry.kcal);
-    $('entry-amount').value = entry.amount || '';
-    MACROS.forEach((k) => { $('entry-' + k).value = numToField(entry[k]); });
+    $('entry-amount-fields').hidden = quick;
+    $('entry-quick-fields').hidden = !quick;
+    if (quick) {
+      $('entry-kcal').value = numToField(entry.kcal);
+      MACROS.forEach((k) => { $('entry-' + k).value = numToField(entry[k]); });
+    } else {
+      $('entry-qty-label').textContent = qtyLabel(entry.unit);
+      $('entry-qty').value = Calc.fmtQty(entry.quantity);
+      updateEntryPreview();
+    }
     $('entry-date').value = entry.date;
     openDialog($('entry-dialog'), $('entry-form').querySelector('[data-close]'));
+  }
+
+  // Live totals from the entry's own per-unit values. Nothing is looked up.
+  function updateEntryPreview() {
+    if (!editingEntry || isQuickEntry(editingEntry)) return;
+    const qty = Calc.parseNumber($('entry-qty').value);
+    $('entry-preview').textContent = qty > 0
+      ? valuesSummary(Calc.entryTotals(Calc.setEntryQuantity(editingEntry, qty))) : '';
   }
 
   function submitEntry(e) {
     e.preventDefault();
     const form = $('entry-form');
-    const kcal = readRequired(form, $('entry-kcal'), 'calories', true);
-    if (kcal === undefined) return;
-    const macros = readMacros(form, 'entry');
-    if (!macros) return;
+    let updated;
+    if (isQuickEntry(editingEntry)) {
+      const kcal = readRequired(form, $('entry-kcal'), 'calories', true);
+      if (kcal === undefined) return;
+      const macros = readMacros(form, 'entry');
+      if (!macros) return;
+      updated = Object.assign({}, editingEntry, macros, { kcal });
+    } else {
+      const qty = readRequired(form, $('entry-qty'), 'amount', false);
+      if (qty === undefined) return;
+      updated = Calc.setEntryQuantity(editingEntry, qty);
+    }
     const date = $('entry-date').value;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { formError(form, 'Choose a date.'); return; }
-    Object.assign(editingEntry, macros, {
-      name: $('entry-name').value.trim(),
-      kcal,
-      amount: $('entry-amount').value.trim(),
-      date,
-    });
+    updated.name = $('entry-name').value.trim();
+    updated.date = date;
+    const i = state.entries.indexOf(editingEntry);
+    state.entries[i] = updated;
     save();
     $('entry-dialog').close();
     render();
@@ -526,14 +543,15 @@
     const list = $('entry-list');
     list.replaceChildren();
     entries.forEach((entry) => {
+      const totals = Calc.entryTotals(entry);
       const li = el('li');
       const btn = el('button', 'row');
       btn.type = 'button';
       const main = el('span', 'row-main');
       main.append(el('span', 'row-title', entryName(entry)));
-      const sub = [entry.amount, macroLine(entry)].filter(Boolean).join(' · ');
+      const sub = [Calc.formatEntryAmount(entry), macroLine(totals)].filter(Boolean).join(' · ');
       main.append(el('span', 'row-sub', sub));
-      btn.append(main, el('span', 'row-kcal', Calc.fmtKcal(entry.kcal) + ' kcal'));
+      btn.append(main, el('span', 'row-kcal', Calc.fmtKcal(totals.kcal) + ' kcal'));
       btn.addEventListener('click', () => openEntry(entry));
       li.append(btn);
       list.append(li);
@@ -567,7 +585,7 @@
     const list = $('food-results');
     list.replaceChildren();
     foods.forEach((food) => {
-      const extra = Calc.formatAmount(Calc.defaultQty(food), food.unit);
+      const extra = Calc.formatAmount(Calc.defaultQty(food, state.entries), Calc.foodEntryUnit(food));
       list.append(foodRow(food, () => openAmount(food), extra));
     });
 
@@ -689,6 +707,7 @@
     $('food-delete').addEventListener('click', deleteFood);
     $('quick-form').addEventListener('submit', submitQuick);
     $('entry-form').addEventListener('submit', submitEntry);
+    $('entry-qty').addEventListener('input', updateEntryPreview);
     $('entry-delete').addEventListener('click', deleteEntry);
 
     // Toast

@@ -203,14 +203,22 @@
         <span>Name</span>
         <input type="text" id="entry-name" autocomplete="off" autocapitalize="sentences" placeholder="optional">
       </label>
-      <div class="field-row">
-        <label class="field"><span>Calories (kcal)</span><input type="text" id="entry-kcal" inputmode="decimal" autocomplete="off"></label>
-        <label class="field"><span>Amount</span><input type="text" id="entry-amount" autocomplete="off" placeholder="optional"></label>
+      <!-- Food and recipe entries: change the amount; totals recalculate from the entry's own values -->
+      <div id="entry-amount-fields">
+        <label class="field">
+          <span id="entry-qty-label">Amount (g)</span>
+          <input type="text" id="entry-qty" inputmode="decimal" autocomplete="off">
+        </label>
+        <p id="entry-preview" class="preview"></p>
       </div>
-      <div class="field-row">
-        <label class="field"><span>Protein (g)</span><input type="text" id="entry-protein" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
-        <label class="field"><span>Carbs (g)</span><input type="text" id="entry-carbs" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
-        <label class="field"><span>Fat (g)</span><input type="text" id="entry-fat" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
+      <!-- Quick add entries: the numbers are the totals -->
+      <div id="entry-quick-fields">
+        <label class="field"><span>Calories (kcal)</span><input type="text" id="entry-kcal" inputmode="decimal" autocomplete="off"></label>
+        <div class="field-row">
+          <label class="field"><span>Protein (g)</span><input type="text" id="entry-protein" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
+          <label class="field"><span>Carbs (g)</span><input type="text" id="entry-carbs" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
+          <label class="field"><span>Fat (g)</span><input type="text" id="entry-fat" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
+        </div>
       </div>
       <label class="field">
         <span>Date</span>

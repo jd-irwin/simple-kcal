@@ -55,10 +55,14 @@ Three collections, plus settings. All ids are short random strings.
 
 **Log entry**
 - `id`, `date` (local calendar date, `YYYY-MM-DD`), `created` (timestamp)
-- `name` (optional), `kcal` (required), `protein`, `carbs`, `fat` (optional)
-- `source`: `"food"`, `"recipe"` or `"quick"`, with optional `sourceId`
-- `amount` (text such as "150 g" or "1.5 portions", for display)
-- Entries store their own copy of the numbers. Editing or deleting a food or recipe never changes past days. Entries are edited individually.
+- `name` (copied from the food or recipe; optional for quick add)
+- `source`: `"food"`, `"recipe"` or `"quick"`, with optional `sourceId` (the link to the saved food or recipe; absent for unsaved foods and quick add)
+- `quantity` (number) and `unit`: `"g"`, `"item"`, `"portion"` or `"quick"`
+- `perAmount`: how many units the nutrition values below refer to (100 for `"g"`, 1 for everything else)
+- `kcal` (required), `protein`, `carbs`, `fat` (optional): the nutrition for `perAmount` units, copied from the source at the time of logging
+- An entry's totals are always calculated as `value x quantity / perAmount`. Totals are never stored.
+- Quick add uses `unit: "quick"`, `quantity: 1`, `perAmount: 1`, so its nutrition values are the totals. This keeps the calculation identical for every entry type.
+- Entries are snapshots. Each carries its own per-unit nutrition, so history stays fixed and deleting a food or recipe never breaks an entry. Saved foods, unsaved foods and recipes all behave the same way in the log; only quick add differs, because there is nothing to scale.
 
 **Rules**
 - Dates are local calendar dates, never UTC. A meal logged at 23:30 BST belongs to that day.
@@ -66,6 +70,14 @@ Three collections, plus settings. All ids are short random strings.
 - A recipe can be added to the log by portions (fractions allowed, e.g. 1.5) or by grams of the cooked batch.
 - Saving a recipe is optional, the same as foods: building a batch and adding a portion to the log without saving must work.
 - Round for display only. Store full precision.
+
+**Editing behaviour**
+- Editing an entry's amount changes `quantity` and recalculates from the entry's own per-unit values. It never looks anything up, so it works the same whether or not the food is saved. The unit is fixed when the entry is logged; to change it, delete and re-add.
+- The entry edit screen shows "Amount" for food and recipe entries, and the kcal and macro numbers directly for quick add entries.
+- The entry edit screen has an "Edit nutrition" option that changes the entry's per-unit values, for when the wrong calories were entered at logging. It is collapsed by default.
+- Editing a saved food or recipe in the Library asks, per edit: "Apply to today's entries / all N logged entries / none?". The choice is made each time, with "none" as the default. N counts entries whose `sourceId` matches. Applying copies the new per-unit values onto those entries and leaves their quantities alone. Unsaved foods and quick add have no link, so they are never affected.
+- Deleting a saved food or recipe never changes any entry. The entry keeps its values and loses nothing but the link.
+- There is no "update to current library values" button on entries. Do not add one.
 
 ## Storage and backup
 
@@ -82,7 +94,7 @@ Files: `index.html`, `style.css`, `app.js`, `calc.js`, `manifest.json`, `sw.js`,
 Screens, bottom tab bar:
 1. **Today (home).** Date selector (previous/next day), total kcal, macro breakdown, list of entries with edit and delete. Prominent Add button.
 2. **Add.** One screen with: search box over saved foods and recipes only; recents at the top; "New food" form (Save to my foods checkbox, checked by default); "Quick add" form; "New recipe" entry point. Choosing a food asks for an amount, then logs it.
-3. **Library.** Foods and recipes, searchable, with edit and delete (confirm or offer undo).
+3. **Library.** Foods and recipes, searchable, with edit and delete (confirm or offer undo). Saving an edit to a food or recipe shows the "apply to entries" prompt described under Editing behaviour.
 4. **History.** Calendar view (last build stage).
 5. **Settings.** Export, import, last backup, app version.
 
@@ -110,14 +122,17 @@ Design principles:
 
 ## Testing
 
-- `node test.js` runs the calculation tests: recipe per-portion and per-gram maths, partial-macro totals, local-date handling around midnight and the BST change, fractional portions.
+- `node test.js` runs the calculation tests: recipe per-portion and per-gram maths, partial-macro totals, local-date handling around midnight and the BST change, fractional portions, entry totals from quantity and per-unit values (including `perAmount` 100 for grams), changing an entry's quantity, quick add entries, and applying an edited food's values to linked entries only.
 - Manual checklist after each stage: add a food saved and unsaved, quick add with no name, edit and delete an entry, check totals, export then import on a cleared browser, reload offline.
 - Check numbers against a calculator for the first few real entries.
 
 ## Decisions already made
 
 - Save to my foods defaults to on.
-- Log entries and recipe ingredients store copies of values and are not linked to the food they came from.
+- Log entries and recipe ingredients store copies of values (snapshots), so history stays fixed. Entries keep an optional `sourceId` link, used only to find entries when a saved food or recipe is edited. Values are never looked up live.
+- Entries are quantity, unit and per-unit values; totals are calculated, never stored.
+- Editing a saved food or recipe prompts per edit: apply to today's entries, all linked entries, or none (default).
+- No "save the day" journal and no live-lookup mode.
 - No daily calorie target.
 - Calendar history is built last.
 - No food API, no external dependencies.
