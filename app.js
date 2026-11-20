@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '0.4.0';
+  const APP_VERSION = '0.5.0';
   const STORAGE_KEY = 'batchKcal.v1';
   const BANNER_SCREENS = ['today', 'settings'];
   const RECENTS_LIMIT = 20;
@@ -218,48 +218,105 @@
     });
   }
 
-  // ---------- Amount dialog (log a saved food) ----------
+  // ---------- Radio helpers ----------
 
-  let amountFood = null;
+  function checkedUnit(radioName) {
+    return document.querySelector('input[name="' + radioName + '"]:checked').value;
+  }
 
-  function openAmount(food) {
-    amountFood = food;
-    $('amount-title').textContent = food.name;
-    $('amount-per').textContent = unitText(food.unit) + ': ' + valuesSummary(food);
-    $('amount-label').textContent = food.unit === '100g' ? 'Amount (g)' : 'Number of items';
-    $('amount-qty').value = Calc.fmtQty(Calc.defaultQty(food, state.entries));
+  function checkRadio(radioName, value) {
+    document.querySelector('input[name="' + radioName + '"][value="' + value + '"]').checked = true;
+  }
+
+  // Enables or disables the Grams option of a Portions / Grams switch, falling back to Portions.
+  function setGramsAllowed(radioName, allowed) {
+    const grams = document.querySelector('input[name="' + radioName + '"][value="g"]');
+    grams.disabled = !allowed;
+    if (!allowed && grams.checked) checkRadio(radioName, 'portion');
+  }
+
+  // ---------- Amount dialog (log a saved food or recipe) ----------
+
+  let amountItem = null;
+  let amountDefault = null;
+
+  function recipePerText(recipe) {
+    const parts = ['Per portion ' + Calc.fmtKcal(Calc.recipePerPortion(recipe).kcal) + ' kcal'];
+    if (Calc.recipeCanLogGrams(recipe)) {
+      parts.push('per 100 g ' + Calc.fmtKcal(Calc.recipeUnitValues(recipe, 'g').kcal) + ' kcal');
+      parts.push('1 portion ≈ ' + Calc.fmtKcal(Calc.recipePortionWeight(recipe)) + ' g');
+    }
+    return parts.join(' · ');
+  }
+
+  function openAmount(item) {
+    amountItem = item;
+    const recipe = Calc.isRecipe(item);
+    $('amount-title').textContent = item.name;
+    $('amount-unit-field').hidden = !recipe;
+    if (recipe) {
+      amountDefault = Calc.defaultRecipeAmount(item, state.entries);
+      setGramsAllowed('amount-unit', Calc.recipeCanLogGrams(item));
+      checkRadio('amount-unit', amountDefault.unit);
+      $('amount-per').textContent = recipePerText(item);
+      $('amount-qty').value = Calc.fmtQty(amountDefault.quantity);
+    } else {
+      $('amount-per').textContent = unitText(item.unit) + ': ' + valuesSummary(item);
+      $('amount-qty').value = Calc.fmtQty(Calc.defaultQty(item, state.entries));
+    }
+    updateAmountLabel();
     updateAmountPreview();
     openDialog($('amount-dialog'), $('amount-form').querySelector('[type=submit]'));
   }
 
+  function amountUnit() {
+    return Calc.isRecipe(amountItem) ? checkedUnit('amount-unit') : Calc.foodEntryUnit(amountItem);
+  }
+
+  function updateAmountLabel() {
+    $('amount-label').textContent = qtyLabel(amountUnit());
+  }
+
+  // Switching between portions and grams: use last time's amount for that unit, else 1 portion or blank grams.
+  function changeAmountUnit() {
+    const unit = amountUnit();
+    if (unit === amountDefault.unit) $('amount-qty').value = Calc.fmtQty(amountDefault.quantity);
+    else $('amount-qty').value = unit === 'portion' ? '1' : '';
+    updateAmountLabel();
+    updateAmountPreview();
+    $('amount-qty').focus();
+  }
+
+  function amountEntry(qty) {
+    const item = amountItem;
+    return Calc.isRecipe(item)
+      ? Calc.entryFromRecipe(item, qty, amountUnit(), item.id)
+      : Calc.entryFromFood(item, qty, item.id);
+  }
+
   function updateAmountPreview() {
     const qty = Calc.parseNumber($('amount-qty').value);
-    $('amount-preview').textContent = qty > 0
-      ? valuesSummary(Calc.entryTotals(Calc.entryFromFood(amountFood, qty))) : '';
+    $('amount-preview').textContent = qty > 0 ? valuesSummary(Calc.entryTotals(amountEntry(qty))) : '';
   }
 
   function submitAmount(e) {
     e.preventDefault();
     const form = $('amount-form');
-    const qty = readRequired(form, $('amount-qty'), 'amount', false);
+    const qty = readRequired(form, $('amount-qty'), amountUnit() === 'g' ? 'amount' : qtyLabel(amountUnit()).toLowerCase(), false);
     if (qty === undefined) return;
-    const food = amountFood;
-    const entry = addEntry(Calc.entryFromFood(food, qty, food.id));
-    food.lastUsed = Date.now();
+    const entry = addEntry(amountEntry(qty));
+    amountItem.lastUsed = Date.now();
     $('amount-dialog').close();
     afterLog(entry);
   }
 
   // ---------- Shared food fields ----------
 
-  function checkedUnit(radioName) {
-    return document.querySelector('input[name="' + radioName + '"]:checked').value;
-  }
-
-  // Reads name, unit, kcal and macros from a food form. Returns the values, or undefined after showing an error.
-  function readFoodFields(form, prefix, radioName) {
+  // Reads name, unit, kcal and macros from a food or ingredient form.
+  // Returns the values, or undefined after showing an error.
+  function readFoodFields(form, prefix, radioName, what) {
     const name = $(prefix + '-name').value.trim();
-    if (!name) { formError(form, 'Enter a name for the food.'); $(prefix + '-name').focus(); return undefined; }
+    if (!name) { formError(form, 'Enter a name for the ' + (what || 'food') + '.'); $(prefix + '-name').focus(); return undefined; }
     const kcal = readRequired(form, $(prefix + '-kcal'), 'calories', true);
     if (kcal === undefined) return undefined;
     const macros = readMacros(form, prefix);
@@ -269,7 +326,7 @@
 
   function fillFoodFields(prefix, radioName, f) {
     $(prefix + '-name').value = f.name;
-    document.querySelector('input[name="' + radioName + '"][value="' + f.unit + '"]').checked = true;
+    checkRadio(radioName, f.unit);
     $(prefix + '-kcal').value = numToField(f.kcal);
     MACROS.forEach((k) => { $(prefix + '-' + k).value = numToField(f[k]); });
   }
@@ -378,15 +435,17 @@
 
   // ---------- Apply a food edit to logged entries ----------
 
-  let applyFood = null;
+  let applyItem = null;
   let applyCounts = null;
 
-  function openApply(food, counts) {
-    applyFood = food;
+  // item is a saved food or recipe that has just been edited.
+  function openApply(item, counts) {
+    applyItem = item;
     applyCounts = counts;
-    $('apply-title').textContent = 'Update entries already logged from ' + food.name + '?';
-    $('apply-text').textContent = 'Amounts stay the same; only the ' + unitText(food.unit) +
-      ' values change. Entries from unsaved foods and quick adds are never affected.';
+    const what = Calc.isRecipe(item) ? 'per-portion and per-100 g' : unitText(item.unit);
+    $('apply-title').textContent = 'Update entries already logged from ' + item.name + '?';
+    $('apply-text').textContent = 'Amounts stay the same; only the ' + what +
+      ' values change. Entries from unsaved foods, unsaved recipes and quick adds are never affected.';
     $('apply-today').textContent = 'Today’s entries (' + counts.today + ')';
     $('apply-today').hidden = counts.today === 0 || counts.today === counts.all;
     $('apply-all').textContent = counts.all === 1 ? 'The 1 logged entry' : 'All ' + counts.all + ' logged entries';
@@ -396,21 +455,304 @@
 
   function applyChoice(scope) {
     $('apply-dialog').close();
-    const food = applyFood;
+    const item = applyItem;
     if (scope === 'none') {
-      toast('Saved ' + food.name + '. Logged entries unchanged.');
+      toast('Saved ' + item.name + '. Logged entries unchanged.');
       return;
     }
     const n = scope === 'today' ? applyCounts.today : applyCounts.all;
     const previous = state.entries;
-    state.entries = Calc.applyFoodToEntries(previous, food, scope, todayKey);
+    state.entries = Calc.applyToEntries(previous, item, scope, todayKey);
     save();
     render();
-    toast('Saved ' + food.name + ' and updated ' + plural(n, 'entry', 'entries') + '.', () => {
+    toast('Saved ' + item.name + ' and updated ' + plural(n, 'entry', 'entries') + '.', () => {
       state.entries = previous;
       save();
       render();
     });
+  }
+
+  // ---------- Recipe builder (new from Add, edit from Library) ----------
+
+  let recipeMode = 'new';
+  let editingRecipe = null;
+  // Ingredients being edited. Copies, so Cancel leaves a saved recipe untouched.
+  let draftIngredients = [];
+
+  function blankFood() {
+    return { name: '', unit: '100g', kcal: null, protein: null, carbs: null, fat: null };
+  }
+
+  // Positive number or null, for the live summary while typing.
+  function softNumber(input) {
+    const n = Calc.parseNumber(input.value);
+    return n > 0 ? n : null;
+  }
+
+  // The recipe as currently typed, for live previews. Not validated.
+  function draftRecipe() {
+    return {
+      name: $('recipe-name').value.trim(),
+      ingredients: draftIngredients,
+      portions: softNumber($('recipe-portions')),
+      cookedWeight: softNumber($('recipe-weight')),
+    };
+  }
+
+  function ingredientAmountText(ing) {
+    return Calc.formatAmount(ing.amount, ing.unit === 'item' ? 'item' : 'g');
+  }
+
+  function openNewRecipe(prefillName) {
+    recipeMode = 'new';
+    editingRecipe = null;
+    draftIngredients = [];
+    $('recipe-name').value = prefillName || '';
+    $('recipe-portions').value = '';
+    $('recipe-weight').value = '';
+    $('recipe-save').checked = true;
+    checkRadio('recipe-unit', 'portion');
+    $('recipe-qty').value = '1';
+    setRecipeMode();
+    renderRecipe();
+    openDialog($('recipe-dialog'), prefillName ? $('add-ingredient') : $('recipe-name'));
+  }
+
+  function openEditRecipe(recipe) {
+    recipeMode = 'edit';
+    editingRecipe = recipe;
+    draftIngredients = recipe.ingredients.map((ing) => Object.assign({}, ing));
+    $('recipe-name').value = recipe.name;
+    $('recipe-portions').value = numToField(recipe.portions);
+    $('recipe-weight').value = numToField(recipe.cookedWeight);
+    setRecipeMode();
+    renderRecipe();
+    openDialog($('recipe-dialog'), $('recipe-form').querySelector('[data-close]'));
+  }
+
+  function setRecipeMode() {
+    const edit = recipeMode === 'edit';
+    $('recipe-title').textContent = edit ? 'Edit saved recipe' : 'New recipe';
+    $('recipe-note').hidden = !edit;
+    $('recipe-log-section').hidden = edit;
+    $('recipe-delete').hidden = !edit;
+    $('recipe-submit').textContent = edit ? 'Save' : 'Log';
+  }
+
+  function renderRecipe() {
+    const recipe = draftRecipe();
+
+    const list = $('ingredient-list');
+    list.replaceChildren();
+    draftIngredients.forEach((ing, i) => {
+      const li = el('li');
+      const btn = el('button', 'row');
+      btn.type = 'button';
+      const main = el('span', 'row-main');
+      main.append(el('span', 'row-title', ing.name));
+      main.append(el('span', 'row-sub', ingredientAmountText(ing) + ' · ' + macroLine(Calc.ingredientValues(ing))));
+      btn.append(main, el('span', 'row-kcal', Calc.fmtKcal(Calc.ingredientValues(ing).kcal) + ' kcal'));
+      btn.addEventListener('click', () => openIngredient(i));
+      li.append(btn);
+      list.append(li);
+    });
+    $('ingredient-empty').hidden = draftIngredients.length > 0;
+
+    const summary = $('recipe-summary');
+    summary.replaceChildren();
+    const line = (label, text) => summary.append(el('dt', null, label), el('dd', null, text));
+    line('Whole batch', valuesSummary(Calc.recipeTotals(draftIngredients)));
+    line('Per portion', recipe.portions ? valuesSummary(Calc.recipePerPortion(recipe)) : 'Enter the number of portions');
+    line('Per 100 g', recipe.cookedWeight ? valuesSummary(Calc.recipeUnitValues(recipe, 'g')) : 'Add the cooked weight to log by grams');
+    if (Calc.recipePortionWeight(recipe) !== null) {
+      line('1 portion', '≈ ' + Calc.fmtKcal(Calc.recipePortionWeight(recipe)) + ' g');
+    }
+
+    if (recipeMode === 'new') {
+      setGramsAllowed('recipe-unit', Calc.recipeCanLogGrams(recipe));
+      const unit = checkedUnit('recipe-unit');
+      $('recipe-qty-label').textContent = unit === 'g' ? 'Amount eaten (g)' : 'Number of portions';
+      const qty = Calc.parseNumber($('recipe-qty').value);
+      const ready = qty > 0 && draftIngredients.length > 0 && (unit === 'g' ? recipe.cookedWeight : recipe.portions);
+      $('recipe-preview').textContent = ready
+        ? 'Logs ' + valuesSummary(Calc.entryTotals(Calc.entryFromRecipe(recipe, qty, unit))) : '';
+      $('recipe-save-only').hidden = !$('recipe-save').checked;
+    } else {
+      $('recipe-save-only').hidden = true;
+    }
+  }
+
+  function changeRecipeUnit() {
+    $('recipe-qty').value = checkedUnit('recipe-unit') === 'portion' ? '1' : '';
+    renderRecipe();
+    $('recipe-qty').focus();
+  }
+
+  // Validates the recipe fields. Returns { name, ingredients, portions, cookedWeight } or undefined after an error.
+  function readRecipe() {
+    const form = $('recipe-form');
+    const name = $('recipe-name').value.trim();
+    if (!name) { formError(form, 'Enter a name for the recipe.'); $('recipe-name').focus(); return undefined; }
+    if (draftIngredients.length === 0) { formError(form, 'Add at least one ingredient.'); $('add-ingredient').focus(); return undefined; }
+    const portions = readRequired(form, $('recipe-portions'), 'number of portions', false);
+    if (portions === undefined) return undefined;
+    const weight = Calc.parseNumber($('recipe-weight').value);
+    if (Number.isNaN(weight) || weight === 0) {
+      formError(form, 'Enter the cooked weight in grams, for example 1200, or leave it blank.');
+      $('recipe-weight').focus();
+      return undefined;
+    }
+    return { name, ingredients: draftIngredients.slice(), portions, cookedWeight: weight };
+  }
+
+  function submitRecipe(e) {
+    e.preventDefault();
+    if (recipeMode === 'edit') saveEditedRecipe();
+    else logNewRecipe();
+  }
+
+  function logNewRecipe() {
+    const form = $('recipe-form');
+    const values = readRecipe();
+    if (!values) return;
+    const unit = checkedUnit('recipe-unit');
+    const qty = readRequired(form, $('recipe-qty'), unit === 'g' ? 'amount eaten' : 'number of portions', false);
+    if (qty === undefined) return;
+    let recipe = null;
+    if ($('recipe-save').checked) {
+      recipe = Object.assign({ id: newId() }, values, { lastUsed: Date.now() });
+      state.recipes.push(recipe);
+    }
+    const entry = addEntry(Calc.entryFromRecipe(values, qty, unit, recipe ? recipe.id : null));
+    $('recipe-dialog').close();
+    afterLog(entry);
+  }
+
+  // Save a new recipe without logging it, for a batch cooked now and eaten later.
+  function saveOnlyRecipe() {
+    const values = readRecipe();
+    if (!values) return;
+    const recipe = Object.assign({ id: newId() }, values, { lastUsed: Date.now() });
+    state.recipes.push(recipe);
+    if (!save()) return;
+    $('recipe-dialog').close();
+    render();
+    toast('Saved ' + recipe.name + ' to your recipes. Nothing logged.', () => {
+      state.recipes = state.recipes.filter((r) => r !== recipe);
+      save();
+      render();
+    });
+  }
+
+  function saveEditedRecipe() {
+    const values = readRecipe();
+    if (!values) return;
+    const recipe = editingRecipe;
+    const before = Object.assign({}, recipe);
+    Object.assign(recipe, values);
+    if (!save()) return;
+    $('recipe-dialog').close();
+    render();
+    const counts = Calc.linkedEntryCounts(state.entries, recipe, todayKey);
+    if (!Calc.recipeChanged(before, recipe) || counts.all === 0) toast('Saved ' + recipe.name + '.');
+    else openApply(recipe, counts);
+  }
+
+  function deleteRecipe() {
+    const recipe = editingRecipe;
+    const index = state.recipes.indexOf(recipe);
+    state.recipes.splice(index, 1);
+    save();
+    $('recipe-dialog').close();
+    render();
+    toast('Deleted ' + recipe.name + '. Logged entries are unchanged.', () => {
+      state.recipes.splice(Math.min(index, state.recipes.length), 0, recipe);
+      save();
+      render();
+    });
+  }
+
+  // ---------- Ingredient sheet ----------
+
+  let ingredientIndex = -1; // -1 while adding a new ingredient
+
+  function openIngredient(index) {
+    ingredientIndex = index;
+    const ing = index >= 0 ? draftIngredients[index] : null;
+    $('ingredient-title').textContent = ing ? 'Edit ingredient' : 'Add ingredient';
+    $('ingredient-pick').hidden = !!ing || state.foods.length === 0;
+    $('ingredient-search').value = '';
+    $('ingredient-copied').hidden = true;
+    fillFoodFields('ing', 'ing-unit', ing || blankFood());
+    $('ing-amount').value = ing ? Calc.fmtQty(ing.amount) : '';
+    $('ingredient-remove').hidden = !ing;
+    $('ingredient-submit').textContent = ing ? 'Save' : 'Add';
+    updateIngredientLabels();
+    renderIngredientPicker();
+    const form = $('ingredient-form');
+    openDialog($('ingredient-dialog'), ing ? $('ing-amount') : (state.foods.length ? form.querySelector('[data-close]') : $('ing-name')));
+  }
+
+  function renderIngredientPicker() {
+    const query = $('ingredient-search').value.trim();
+    const foods = Calc.searchRecent(state.foods, query).slice(0, RECENTS_LIMIT);
+    const list = $('ingredient-results');
+    list.replaceChildren();
+    foods.forEach((food) => list.append(foodRow(food, () => pickIngredientFood(food), Calc.fmtKcal(food.kcal) + ' kcal')));
+    const empty = $('ingredient-results-empty');
+    empty.textContent = 'No saved foods match “' + query + '”. Type the ingredient in below.';
+    empty.hidden = foods.length > 0;
+  }
+
+  // Copies a saved food's values into the form. The ingredient is a copy, not a link.
+  function pickIngredientFood(food) {
+    fillFoodFields('ing', 'ing-unit', food);
+    $('ing-amount').value = food.unit === 'item' ? '1' : '';
+    $('ingredient-pick').hidden = true;
+    $('ingredient-copied').textContent = 'Copied from your saved food ' + food.name +
+      '. Changes here affect this recipe only.';
+    $('ingredient-copied').hidden = false;
+    updateIngredientLabels();
+    $('ing-amount').focus();
+  }
+
+  function updateIngredientLabels() {
+    const unit = checkedUnit('ing-unit');
+    $('ing-kcal-label').textContent = 'Calories ' + unitText(unit) + ' (kcal)';
+    $('ing-amount-label').textContent = unit === 'item' ? 'Number of items used' : 'Weight used (g)';
+    updateIngredientPreview();
+  }
+
+  function updateIngredientPreview() {
+    const kcal = Calc.parseNumber($('ing-kcal').value);
+    const amount = Calc.parseNumber($('ing-amount').value);
+    if (!(kcal >= 0) || !(amount > 0)) { $('ing-preview').textContent = ''; return; }
+    const vals = { name: '', unit: checkedUnit('ing-unit'), kcal: kcal };
+    MACROS.forEach((k) => {
+      const n = Calc.parseNumber($('ing-' + k).value);
+      vals[k] = Number.isNaN(n) ? null : n;
+    });
+    $('ing-preview').textContent = 'Adds ' + valuesSummary(Calc.ingredientValues(Calc.ingredientFromFood(vals, amount)));
+  }
+
+  function submitIngredient(e) {
+    e.preventDefault();
+    const form = $('ingredient-form');
+    const values = readFoodFields(form, 'ing', 'ing-unit', 'ingredient');
+    if (!values) return;
+    const amount = readRequired(form, $('ing-amount'), values.unit === 'item' ? 'number of items used' : 'weight used', false);
+    if (amount === undefined) return;
+    const ing = Calc.ingredientFromFood(values, amount);
+    if (ingredientIndex >= 0) draftIngredients[ingredientIndex] = ing;
+    else draftIngredients.push(ing);
+    $('ingredient-dialog').close();
+    renderRecipe();
+  }
+
+  function removeIngredient() {
+    draftIngredients.splice(ingredientIndex, 1);
+    $('ingredient-dialog').close();
+    renderRecipe();
   }
 
   // ---------- Quick add ----------
@@ -456,6 +798,11 @@
       if (!entry.sourceId) src = 'Not saved to your foods';
       else if (food) src = 'From your saved food ' + food.name;
       else src = 'From a food no longer in your Library';
+    } else if (entry.source === 'recipe') {
+      const recipe = entry.sourceId ? state.recipes.find((r) => r.id === entry.sourceId) : null;
+      if (!entry.sourceId) src = 'Recipe not saved';
+      else if (recipe) src = 'From your saved recipe ' + recipe.name;
+      else src = 'From a recipe no longer in your Library';
     }
     return Calc.weekdayDate(entry.date) + (src ? ' · ' + src : '');
   }
@@ -672,17 +1019,26 @@
     $('entry-empty').hidden = entries.length > 0;
   }
 
-  function foodRow(food, onClick, extra) {
+  function makeRow(title, sub, extra, onClick) {
     const li = el('li');
     const btn = el('button', 'row');
     btn.type = 'button';
     const main = el('span', 'row-main');
-    main.append(el('span', 'row-title', food.name));
-    main.append(el('span', 'row-sub', unitText(food.unit) + ' · ' + macroLine(food)));
+    main.append(el('span', 'row-title', title));
+    main.append(el('span', 'row-sub', sub));
     btn.append(main, el('span', 'row-kcal', extra));
     btn.addEventListener('click', onClick);
     li.append(btn);
     return li;
+  }
+
+  function foodRow(food, onClick, extra) {
+    return makeRow(food.name, unitText(food.unit) + ' · ' + macroLine(food), extra, onClick);
+  }
+
+  function recipeRow(recipe, onClick, extra, label) {
+    const sub = (label ? label + ' · ' : '') + 'per portion · ' + macroLine(Calc.recipePerPortion(recipe));
+    return makeRow(recipe.name, sub, extra, onClick);
   }
 
   function renderAdd() {
@@ -690,49 +1046,69 @@
     const named = ['Today', 'Yesterday', 'Tomorrow'].includes(title);
     $('add-date-note').textContent = 'Adding to ' + (named ? title.toLowerCase() : title) + '.';
     const query = $('food-search').value.trim();
-    let foods = Calc.searchRecent(state.foods, query);
-    if (!query) foods = foods.slice(0, RECENTS_LIMIT);
-    $('food-list-heading').textContent = query ? 'Matching foods' : 'Recent';
-    $('food-list-heading').hidden = foods.length === 0;
+    let items = Calc.searchRecent(state.foods.concat(state.recipes), query);
+    if (!query) items = items.slice(0, RECENTS_LIMIT);
+    $('food-list-heading').textContent = query ? 'Matches' : 'Recent';
+    $('food-list-heading').hidden = items.length === 0;
 
     const list = $('food-results');
     list.replaceChildren();
-    foods.forEach((food) => {
-      const extra = Calc.formatAmount(Calc.defaultQty(food, state.entries), Calc.foodEntryUnit(food));
-      list.append(foodRow(food, () => openAmount(food), extra));
+    items.forEach((item) => {
+      if (Calc.isRecipe(item)) {
+        const d = Calc.defaultRecipeAmount(item, state.entries);
+        list.append(recipeRow(item, () => openAmount(item), Calc.formatAmount(d.quantity, d.unit), 'Recipe'));
+      } else {
+        const extra = Calc.formatAmount(Calc.defaultQty(item, state.entries), Calc.foodEntryUnit(item));
+        list.append(foodRow(item, () => openAmount(item), extra));
+      }
     });
 
     const empty = $('food-empty');
     empty.replaceChildren();
-    if (foods.length === 0) {
+    if (items.length === 0) {
       if (query) {
-        empty.append(el('p', null, 'No saved foods match “' + query + '”.'));
-        const btn = el('button', 'btn btn-primary', 'Add “' + query + '” as a new food');
-        btn.type = 'button';
-        btn.addEventListener('click', () => openNewFood(query));
-        empty.append(btn);
+        empty.append(el('p', null, 'No saved foods or recipes match “' + query + '”.'));
+        const food = el('button', 'btn btn-primary', 'Add “' + query + '” as a new food');
+        food.type = 'button';
+        food.addEventListener('click', () => openNewFood(query));
+        const recipe = el('button', 'btn', 'Make “' + query + '” as a new recipe');
+        recipe.type = 'button';
+        recipe.addEventListener('click', () => openNewRecipe(query));
+        empty.append(food, recipe);
       } else {
-        empty.append(el('p', null, 'No saved foods yet. Tap New food to add one; it will appear here next time.'));
+        empty.append(el('p', null, 'Nothing saved yet. Tap New food or New recipe to add one; it will appear here next time.'));
       }
     }
-    empty.hidden = foods.length > 0;
+    empty.hidden = items.length > 0;
   }
 
   function renderLibrary() {
     const query = $('library-search').value.trim();
     const foods = Calc.searchByName(state.foods, query);
-    const list = $('library-list');
-    list.replaceChildren();
+    const recipes = Calc.searchByName(state.recipes, query);
+
+    const foodList = $('library-foods');
+    foodList.replaceChildren();
     foods.forEach((food) => {
-      list.append(foodRow(food, () => openEditFood(food), Calc.fmtKcal(food.kcal) + ' kcal'));
+      foodList.append(foodRow(food, () => openEditFood(food), Calc.fmtKcal(food.kcal) + ' kcal'));
     });
+    $('library-foods-heading').hidden = foods.length === 0;
+
+    const recipeList = $('library-recipes');
+    recipeList.replaceChildren();
+    recipes.forEach((recipe) => {
+      const kcal = Calc.fmtKcal(Calc.recipePerPortion(recipe).kcal) + ' kcal';
+      recipeList.append(recipeRow(recipe, () => openEditRecipe(recipe), kcal, plural(recipe.ingredients.length, 'ingredient', 'ingredients')));
+    });
+    $('library-recipes-heading').hidden = recipes.length === 0;
+
     const empty = $('library-empty');
-    if (state.foods.length === 0) {
-      empty.textContent = 'No saved foods yet. Foods you save when adding them will appear here.';
+    if (state.foods.length + state.recipes.length === 0) {
+      empty.textContent = 'Nothing saved yet. Foods and recipes you save when adding them will appear here.';
     } else {
-      empty.textContent = 'No saved foods match “' + query + '”.';
+      empty.textContent = 'Nothing saved matches “' + query + '”.';
     }
-    empty.hidden = foods.length > 0;
+    empty.hidden = foods.length + recipes.length > 0;
   }
 
   function renderSettings() {
@@ -803,6 +1179,7 @@
     $('food-search').addEventListener('input', renderAdd);
     $('new-food-btn').addEventListener('click', () => openNewFood($('food-search').value.trim()));
     $('quick-add-btn').addEventListener('click', openQuick);
+    $('new-recipe-btn').addEventListener('click', () => openNewRecipe($('food-search').value.trim()));
 
     // Library
     $('library-search').addEventListener('input', renderLibrary);
@@ -813,6 +1190,20 @@
     });
     $('amount-form').addEventListener('submit', submitAmount);
     $('amount-qty').addEventListener('input', updateAmountPreview);
+    document.querySelectorAll('input[name="amount-unit"]').forEach((r) => r.addEventListener('change', changeAmountUnit));
+    $('recipe-form').addEventListener('submit', submitRecipe);
+    $('recipe-form').addEventListener('input', renderRecipe);
+    document.querySelectorAll('input[name="recipe-unit"]').forEach((r) => r.addEventListener('change', changeRecipeUnit));
+    $('recipe-save-only').addEventListener('click', saveOnlyRecipe);
+    $('recipe-delete').addEventListener('click', deleteRecipe);
+    $('add-ingredient').addEventListener('click', () => openIngredient(-1));
+    $('ingredient-form').addEventListener('submit', submitIngredient);
+    $('ingredient-form').addEventListener('input', updateIngredientPreview);
+    document.querySelectorAll('input[name="ing-unit"]').forEach((r) => r.addEventListener('change', updateIngredientLabels));
+    $('ingredient-search').addEventListener('input', renderIngredientPicker);
+    // Enter in a search box should not submit the ingredient form.
+    $('ingredient-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+    $('ingredient-remove').addEventListener('click', removeIngredient);
     $('food-form').addEventListener('submit', submitNewFood);
     $('food-form').addEventListener('input', updateFoodPreview);
     $('food-qty').addEventListener('input', () => { $('food-qty').dataset.touched = '1'; });

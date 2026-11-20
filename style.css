@@ -534,3 +534,47 @@ h2 + h3.sheet-section {
   flex: none;
   width: 100%;
 }
+
+/* ---------- Recipes ---------- */
+
+.add-buttons .btn {
+  flex-basis: 90px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.btn-wide {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  margin-bottom: 8px;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 4px 0 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.summary dt {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.summary dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.segmented label:has(input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#food-empty .btn + .btn {
+  margin-top: 8px;
+}

@@ -158,7 +158,7 @@ test('formatEntryAmount', () => {
   assert.equal(Calc.formatEntryAmount(Calc.entryFromQuick({ kcal: 1 })), '');
 });
 
-test('linkedEntryCounts and applyFoodToEntries touch linked entries only', () => {
+test('linkedEntryCounts and applyToEntries touch linked entries only', () => {
   const today = '2026-11-20';
   const entries = [
     Object.assign({ id: 1, date: today }, Calc.entryFromFood(oats, 50, 'oats')),
@@ -171,10 +171,10 @@ test('linkedEntryCounts and applyFoodToEntries touch linked entries only', () =>
 
   const fixed = Object.assign({}, oats, { kcal: 370, carbs: 60 });
 
-  const none = Calc.applyFoodToEntries(entries, fixed, 'none', today);
+  const none = Calc.applyToEntries(entries, fixed, 'none', today);
   assert.deepEqual(none, entries);
 
-  const t = Calc.applyFoodToEntries(entries, fixed, 'today', today);
+  const t = Calc.applyToEntries(entries, fixed, 'today', today);
   assert.equal(t[0].kcal, 370);
   assert.equal(t[0].carbs, 60);
   assert.equal(t[0].quantity, 50);
@@ -184,18 +184,18 @@ test('linkedEntryCounts and applyFoodToEntries touch linked entries only', () =>
   assert.equal(t[4], entries[4]);
   assert.equal(entries[0].kcal, 380); // input not mutated
 
-  const all = Calc.applyFoodToEntries(entries, fixed, 'all', today);
+  const all = Calc.applyToEntries(entries, fixed, 'all', today);
   assert.equal(all[0].kcal, 370);
   assert.equal(all[1].kcal, 370);
   assert.equal(all[1].quantity, 80);
   assert.equal(all[2].kcal, 380);
 });
 
-test('applyFoodToEntries skips entries whose unit no longer matches the food', () => {
+test('applyToEntries skips entries whose unit no longer matches the food', () => {
   const entries = [Object.assign({ id: 1, date: '2026-11-20' }, Calc.entryFromFood(oats, 50, 'oats'))];
   const nowPerItem = Object.assign({}, oats, { unit: 'item', kcal: 150 });
   assert.deepEqual(Calc.linkedEntryCounts(entries, nowPerItem, '2026-11-20'), { today: 0, all: 0 });
-  assert.equal(Calc.applyFoodToEntries(entries, nowPerItem, 'all', '2026-11-20')[0].kcal, 380);
+  assert.equal(Calc.applyToEntries(entries, nowPerItem, 'all', '2026-11-20')[0].kcal, 380);
 });
 
 // ---------- Daily totals ----------
@@ -256,8 +256,8 @@ test('sumEntries: empty list', () => {
 
 const porridge = {
   ingredients: [
-    { name: 'Oats', grams: 200, kcalPer100g: 380, protein: 13, carbs: 60, fat: 7 },
-    { name: 'Milk', grams: 500, kcalPer100g: 50, protein: 3.5, carbs: 4.8, fat: 1.8 },
+    { name: 'Oats', unit: '100g', amount: 200, kcal: 380, protein: 13, carbs: 60, fat: 7 },
+    { name: 'Milk', unit: '100g', amount: 500, kcal: 50, protein: 3.5, carbs: 4.8, fat: 1.8 },
   ],
   cookedWeight: 800,
   portions: 4,
@@ -269,7 +269,6 @@ test('recipeTotals sums ingredients', () => {
   approx(t.protein, 43.5);
   approx(t.carbs, 144);
   approx(t.fat, 23);
-  assert.equal(t.rawWeight, 700);
 });
 
 test('recipePerPortion and recipePerGram', () => {
@@ -297,7 +296,7 @@ test('recipe macro is null if any ingredient lacks it', () => {
   const r = {
     ingredients: [
       porridge.ingredients[0],
-      { name: 'Honey', grams: 20, kcalPer100g: 304, protein: 0.3, carbs: 82, fat: null },
+      { name: 'Honey', unit: '100g', amount: 20, kcal: 304, protein: 0.3, carbs: 82, fat: null },
     ],
     cookedWeight: 220,
     portions: 2,
@@ -312,6 +311,113 @@ test('recipe with zero portions or weight gives nulls, not Infinity', () => {
   const r = Object.assign({}, porridge, { portions: 0, cookedWeight: 0 });
   assert.equal(Calc.recipePerPortion(r).kcal, null);
   assert.equal(Calc.recipePerGram(r).kcal, null);
+});
+
+test('per-item ingredients count items, not grams', () => {
+  const eggs = { name: 'Egg', unit: 'item', amount: 3, kcal: 70, protein: 6, carbs: 0.5, fat: 5 };
+  const v = Calc.ingredientValues(eggs);
+  approx(v.kcal, 210);
+  approx(v.protein, 18);
+  const t = Calc.recipeTotals([porridge.ingredients[0], eggs]);
+  approx(t.kcal, 760 + 210);
+  approx(t.fat, 14 + 15);
+});
+
+test('ingredientFromFood copies values, so editing the food later leaves the recipe alone', () => {
+  const food = { id: 'f1', name: 'Oats', unit: '100g', kcal: 380, protein: 13, carbs: null, fat: 7, lastUsed: 5 };
+  const ing = Calc.ingredientFromFood(food, 200);
+  assert.deepEqual(ing, { name: 'Oats', unit: '100g', amount: 200, kcal: 380, protein: 13, carbs: null, fat: 7 });
+  food.kcal = 999;
+  assert.equal(ing.kcal, 380);
+  assert.equal(Calc.ingredientFromFood({ name: 'Egg', unit: 'item', kcal: 70 }, 2).unit, 'item');
+});
+
+test('recipeUnitValues and recipePortionWeight', () => {
+  approx(Calc.recipeUnitValues(porridge, 'portion').kcal, 252.5);
+  approx(Calc.recipeUnitValues(porridge, 'g').kcal, 126.25);
+  approx(Calc.recipePortionWeight(porridge), 200);
+  const noWeight = Object.assign({}, porridge, { cookedWeight: null });
+  assert.equal(Calc.recipeCanLogGrams(noWeight), false);
+  assert.equal(Calc.recipePortionWeight(noWeight), null);
+  assert.equal(Calc.recipeUnitValues(noWeight, 'g').kcal, null);
+});
+
+test('entryFromRecipe by portions (fractional) matches recipeServing', () => {
+  const e = Calc.entryFromRecipe(Object.assign({ name: 'Porridge' }, porridge), 1.5, 'portion', 'r1');
+  assert.equal(e.source, 'recipe');
+  assert.equal(e.sourceId, 'r1');
+  assert.equal(e.unit, 'portion');
+  assert.equal(e.perAmount, 1);
+  approx(e.kcal, 252.5);
+  approx(Calc.entryTotals(e).kcal, Calc.recipeServing(porridge, { portions: 1.5 }).kcal);
+  approx(Calc.entryTotals(e).carbs, 54);
+});
+
+test('entryFromRecipe by grams stores per-100 g values and totals match recipeServing', () => {
+  const e = Calc.entryFromRecipe(Object.assign({ name: 'Porridge' }, porridge), 300, 'g', null);
+  assert.equal(e.sourceId, null);
+  assert.equal(e.unit, 'g');
+  assert.equal(e.perAmount, 100);
+  approx(e.kcal, 126.25);
+  approx(Calc.entryTotals(e).kcal, Calc.recipeServing(porridge, { grams: 300 }).kcal);
+  approx(Calc.entryTotals(Calc.setEntryQuantity(e, 150)).kcal, 189.375);
+});
+
+test('recipeChanged ignores renames but sees ingredient, weight and portion changes', () => {
+  const a = Object.assign({ name: 'Porridge' }, porridge);
+  assert.equal(Calc.recipeChanged(a, Object.assign({}, a, { name: 'Oat porridge' })), false);
+  assert.equal(Calc.recipeChanged(a, Object.assign({}, a, { portions: 5 })), true);
+  assert.equal(Calc.recipeChanged(a, Object.assign({}, a, { cookedWeight: 900 })), true);
+  assert.equal(Calc.recipeChanged(a, Object.assign({}, a, { cookedWeight: null })), true);
+  const more = Object.assign({}, a, { ingredients: a.ingredients.concat([{ name: 'Salt', unit: '100g', amount: 1, kcal: 0, protein: 0, carbs: 0, fat: 0 }]) });
+  assert.equal(Calc.recipeChanged(a, more), false, 'zero-kcal ingredient changes nothing');
+});
+
+test('applyToEntries with a recipe updates linked portion and gram entries, keeping quantities', () => {
+  const today = '2026-11-20';
+  const r = Object.assign({ id: 'r1', name: 'Porridge' }, porridge);
+  const byPortion = Object.assign({ id: 'a', date: today }, Calc.entryFromRecipe(r, 2, 'portion', 'r1'));
+  const byGrams = Object.assign({ id: 'b', date: '2026-11-19' }, Calc.entryFromRecipe(r, 300, 'g', 'r1'));
+  const unsaved = Object.assign({ id: 'c', date: today }, Calc.entryFromRecipe(r, 1, 'portion', null));
+  const food = Object.assign({ id: 'd', date: today }, Calc.entryFromFood({ name: 'X', unit: '100g', kcal: 1 }, 100, 'r1'));
+  const entries = [byPortion, byGrams, unsaved, food];
+  assert.deepEqual(Calc.linkedEntryCounts(entries, r, today), { today: 1, all: 2 });
+
+  const edited = Object.assign({}, r, { portions: 5, cookedWeight: 1010 });
+  const all = Calc.applyToEntries(entries, edited, 'all', today);
+  approx(all[0].kcal, 202);
+  assert.equal(all[0].quantity, 2);
+  approx(all[1].kcal, 100);
+  assert.equal(all[1].quantity, 300);
+  assert.equal(all[2], unsaved);
+  assert.equal(all[3], food);
+
+  const t = Calc.applyToEntries(entries, edited, 'today', today);
+  approx(t[0].kcal, 202);
+  assert.equal(t[1], byGrams);
+});
+
+test('gram entries stop being linked when the recipe loses its cooked weight', () => {
+  const r = Object.assign({ id: 'r1', name: 'Porridge' }, porridge);
+  const byGrams = Object.assign({ id: 'b', date: '2026-11-20' }, Calc.entryFromRecipe(r, 300, 'g', 'r1'));
+  const noWeight = Object.assign({}, r, { cookedWeight: null });
+  assert.deepEqual(Calc.linkedEntryCounts([byGrams], noWeight, '2026-11-20'), { today: 0, all: 0 });
+  assert.equal(Calc.applyToEntries([byGrams], noWeight, 'all', '2026-11-20')[0], byGrams);
+});
+
+test('defaultRecipeAmount uses the latest linked entry, else 1 portion', () => {
+  const r = Object.assign({ id: 'r1', name: 'Porridge' }, porridge);
+  assert.deepEqual(Calc.defaultRecipeAmount(r, []), { quantity: 1, unit: 'portion' });
+  const e1 = Object.assign({ created: 1 }, Calc.entryFromRecipe(r, 1.5, 'portion', 'r1'));
+  const e2 = Object.assign({ created: 2 }, Calc.entryFromRecipe(r, 250, 'g', 'r1'));
+  assert.deepEqual(Calc.defaultRecipeAmount(r, [e2, e1]), { quantity: 250, unit: 'g' });
+  const noWeight = Object.assign({}, r, { cookedWeight: null });
+  assert.deepEqual(Calc.defaultRecipeAmount(noWeight, [e1, e2]), { quantity: 1.5, unit: 'portion' });
+});
+
+test('isRecipe tells recipes from foods', () => {
+  assert.equal(Calc.isRecipe(porridge), true);
+  assert.equal(Calc.isRecipe({ name: 'Oats', unit: '100g', kcal: 380 }), false);
 });
 
 // ---------- Display ----------

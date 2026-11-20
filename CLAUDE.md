@@ -47,7 +47,7 @@ Three collections, plus settings. All ids are short random strings.
 
 **Recipe**
 - `id`, `name`
-- `ingredients`: list of `{ name, grams, kcalPer100g, protein, carbs, fat }`. Ingredients are copies, not links, so editing a saved food does not silently change recipes. An ingredient can be picked from saved foods (which copies its values) or typed in ad hoc.
+- `ingredients`: list of `{ name, unit, amount, kcal, protein, carbs, fat }`, where `unit` is `"100g"` or `"item"` as for a food and `amount` is grams or number of items. Per-item ingredients need no weight. Ingredients are copies, not links, so editing a saved food does not silently change recipes. An ingredient can be picked from saved foods (which copies its values) or typed in ad hoc.
 - `cookedWeight` (grams, the weight of the finished batch)
 - `portions` (number of portions the batch is divided into)
 - `lastUsed`

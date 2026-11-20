@@ -49,9 +49,10 @@
     <section id="screen-add" class="screen" data-screen="add" hidden>
       <h1>Add</h1>
       <p id="add-date-note" class="muted small"></p>
-      <input type="search" id="food-search" class="search" placeholder="Search my foods" autocomplete="off" enterkeyhint="search">
-      <div class="button-row">
+      <input type="search" id="food-search" class="search" placeholder="Search my foods and recipes" autocomplete="off" enterkeyhint="search">
+      <div class="button-row add-buttons">
         <button type="button" id="new-food-btn" class="btn">New food</button>
+        <button type="button" id="new-recipe-btn" class="btn">New recipe</button>
         <button type="button" id="quick-add-btn" class="btn">Quick add</button>
       </div>
       <h2 id="food-list-heading">Recent</h2>
@@ -62,8 +63,11 @@
     <!-- Library -->
     <section id="screen-library" class="screen" data-screen="library" hidden>
       <h1>Library</h1>
-      <input type="search" id="library-search" class="search" placeholder="Search my foods" autocomplete="off" enterkeyhint="search">
-      <ul id="library-list" class="list"></ul>
+      <input type="search" id="library-search" class="search" placeholder="Search my foods and recipes" autocomplete="off" enterkeyhint="search">
+      <h2 id="library-foods-heading">Foods</h2>
+      <ul id="library-foods" class="list"></ul>
+      <h2 id="library-recipes-heading">Recipes</h2>
+      <ul id="library-recipes" class="list"></ul>
       <p id="library-empty" class="placeholder" hidden></p>
     </section>
 
@@ -111,11 +115,16 @@
     <button type="button" id="toast-undo" class="toast-undo" hidden>Undo</button>
   </div>
 
-  <!-- Log a saved food: choose amount -->
+  <!-- Log a saved food or recipe: choose amount -->
   <dialog id="amount-dialog" class="sheet">
     <form id="amount-form" novalidate>
       <h2 id="amount-title"></h2>
       <p id="amount-per" class="muted small"></p>
+      <fieldset id="amount-unit-field" class="field segmented" hidden>
+        <legend>Log by</legend>
+        <label><input type="radio" name="amount-unit" value="portion" checked> Portions</label>
+        <label><input type="radio" name="amount-unit" value="g"> Grams</label>
+      </fieldset>
       <label class="field">
         <span id="amount-label">Amount (g)</span>
         <input type="text" id="amount-qty" inputmode="decimal" autocomplete="off">
@@ -214,6 +223,99 @@
         <button type="button" id="apply-none" class="btn btn-primary" autofocus>Don't update</button>
         <button type="button" id="apply-today" class="btn"></button>
         <button type="button" id="apply-all" class="btn"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Recipe builder: new (Add) or edit saved (Library) -->
+  <dialog id="recipe-dialog" class="sheet">
+    <form id="recipe-form" novalidate>
+      <h2 id="recipe-title">New recipe</h2>
+      <p id="recipe-note" class="note small" hidden>This changes the recipe in your Library. Entries already logged keep their values unless you choose to update them.</p>
+      <label class="field">
+        <span>Name</span>
+        <input type="text" id="recipe-name" autocomplete="off" autocapitalize="sentences" enterkeyhint="done">
+      </label>
+
+      <h3 class="sheet-section">Ingredients</h3>
+      <ul id="ingredient-list" class="list"></ul>
+      <p id="ingredient-empty" class="muted small">No ingredients yet. Add everything that went into the batch.</p>
+      <button type="button" id="add-ingredient" class="btn btn-wide">+ Add ingredient</button>
+
+      <h3 class="sheet-section">The batch</h3>
+      <div class="field-row">
+        <label class="field"><span>Portions</span><input type="text" id="recipe-portions" inputmode="decimal" autocomplete="off"></label>
+        <label class="field"><span>Cooked weight (g)</span><input type="text" id="recipe-weight" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+      </div>
+      <p class="muted small">Weigh the finished batch without the pan to log by grams. Leave blank to log by portion only.</p>
+      <dl id="recipe-summary" class="summary"></dl>
+
+      <div id="recipe-log-section">
+        <h3 class="sheet-section">What you ate</h3>
+        <fieldset class="field segmented">
+          <legend>Log by</legend>
+          <label><input type="radio" name="recipe-unit" value="portion" checked> Portions</label>
+          <label><input type="radio" name="recipe-unit" value="g"> Grams</label>
+        </fieldset>
+        <label class="field">
+          <span id="recipe-qty-label">Number of portions</span>
+          <input type="text" id="recipe-qty" inputmode="decimal" autocomplete="off">
+        </label>
+        <p id="recipe-preview" class="preview"></p>
+        <label class="check">
+          <input type="checkbox" id="recipe-save" checked> Save to my recipes for next time
+        </label>
+      </div>
+
+      <p class="message error" hidden></p>
+      <div class="button-row">
+        <button type="button" id="recipe-delete" class="btn btn-danger" hidden>Delete</button>
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="button" id="recipe-save-only" class="btn">Save only</button>
+        <button type="submit" id="recipe-submit" class="btn btn-primary">Log</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Add or edit one ingredient of the recipe being built -->
+  <dialog id="ingredient-dialog" class="sheet">
+    <form id="ingredient-form" novalidate>
+      <h2 id="ingredient-title">Add ingredient</h2>
+      <div id="ingredient-pick">
+        <input type="search" id="ingredient-search" class="search" placeholder="Search my foods" autocomplete="off" enterkeyhint="search">
+        <ul id="ingredient-results" class="list"></ul>
+        <p id="ingredient-results-empty" class="muted small" hidden></p>
+        <h3 class="sheet-section">Or type it in</h3>
+      </div>
+      <p id="ingredient-copied" class="note small" hidden></p>
+      <label class="field">
+        <span>Name</span>
+        <input type="text" id="ing-name" autocomplete="off" autocapitalize="sentences" enterkeyhint="next">
+      </label>
+      <fieldset class="field segmented">
+        <legend>Values are</legend>
+        <label><input type="radio" name="ing-unit" value="100g" checked> per 100 g</label>
+        <label><input type="radio" name="ing-unit" value="item"> per item</label>
+      </fieldset>
+      <label class="field">
+        <span id="ing-kcal-label">Calories per 100 g (kcal)</span>
+        <input type="text" id="ing-kcal" inputmode="decimal" autocomplete="off">
+      </label>
+      <div class="field-row">
+        <label class="field"><span>Protein (g)</span><input type="text" id="ing-protein" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+        <label class="field"><span>Carbs (g)</span><input type="text" id="ing-carbs" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+        <label class="field"><span>Fat (g)</span><input type="text" id="ing-fat" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+      </div>
+      <label class="field">
+        <span id="ing-amount-label">Weight used (g)</span>
+        <input type="text" id="ing-amount" inputmode="decimal" autocomplete="off">
+      </label>
+      <p id="ing-preview" class="preview"></p>
+      <p class="message error" hidden></p>
+      <div class="button-row">
+        <button type="button" id="ingredient-remove" class="btn btn-danger" hidden>Remove</button>
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" id="ingredient-submit" class="btn btn-primary">Add</button>
       </div>
     </form>
   </dialog>

@@ -127,34 +127,46 @@
     return ['kcal'].concat(MACROS).some((k) => orNull(a[k]) !== orNull(b[k]));
   }
 
-  // True if the entry was logged from this saved food and its unit still matches the food's.
-  function isLinked(entry, food) {
-    return entry.source === 'food' && !!entry.sourceId && entry.sourceId === food.id &&
-      entry.unit === foodEntryUnit(food);
+  function isRecipe(item) {
+    return !!item && Array.isArray(item.ingredients);
   }
 
-  function linkedEntryCounts(entries, food, todayKey) {
+  // True if the entry was logged from this saved food or recipe and can still take its values:
+  // a food entry's unit must match the food's; a recipe entry by grams needs a cooked weight.
+  function isLinked(entry, item) {
+    if (!entry.sourceId || entry.sourceId !== item.id) return false;
+    if (isRecipe(item)) {
+      if (entry.source !== 'recipe') return false;
+      if (entry.unit === 'portion') return isNum(item.portions) && item.portions > 0;
+      if (entry.unit === 'g') return recipeCanLogGrams(item);
+      return false;
+    }
+    return entry.source === 'food' && entry.unit === foodEntryUnit(item);
+  }
+
+  function linkedEntryCounts(entries, item, todayKey) {
     let all = 0;
     let today = 0;
     entries.forEach((e) => {
-      if (!isLinked(e, food)) return;
+      if (!isLinked(e, item)) return;
       all++;
       if (e.date === todayKey) today++;
     });
     return { today: today, all: all };
   }
 
-  // scope: 'none', 'today' or 'all'. Copies the food's per-unit values onto linked entries,
-  // leaving quantities alone. Returns a new array; other entries are returned unchanged.
-  function applyFoodToEntries(entries, food, scope, todayKey) {
+  // scope: 'none', 'today' or 'all'. Copies a saved food's or recipe's current per-unit values onto
+  // linked entries, leaving quantities alone. Returns a new array; other entries are returned unchanged.
+  function applyToEntries(entries, item, scope, todayKey) {
     return entries.map((e) => {
-      if (scope === 'none' || !isLinked(e, food)) return e;
+      if (scope === 'none' || !isLinked(e, item)) return e;
       if (scope === 'today' && e.date !== todayKey) return e;
+      const v = isRecipe(item) ? recipeUnitValues(item, e.unit) : item;
       return Object.assign({}, e, {
-        kcal: food.kcal,
-        protein: orNull(food.protein),
-        carbs: orNull(food.carbs),
-        fat: orNull(food.fat),
+        kcal: v.kcal,
+        protein: orNull(v.protein),
+        carbs: orNull(v.carbs),
+        fat: orNull(v.fat),
       });
     });
   }
@@ -180,19 +192,40 @@
   }
 
   // ---------- Recipes ----------
+  // Ingredient: { name, unit: '100g' | 'item', amount, kcal, protein, carbs, fat }.
+  // Like a food, the values are per 100 g or per item; amount is grams or number of items.
+  // Ingredients are copies, so editing a saved food never changes a recipe.
 
-  // Totals for the whole batch. Ingredient values are per 100 g.
-  // A macro total is null unless every ingredient has that macro, because a
-  // partial sum would silently understate it.
+  function ingredientFromFood(food, amount) {
+    return {
+      name: food.name,
+      unit: food.unit === 'item' ? 'item' : '100g',
+      amount: amount,
+      kcal: food.kcal,
+      protein: orNull(food.protein),
+      carbs: orNull(food.carbs),
+      fat: orNull(food.fat),
+    };
+  }
+
+  // Nutrition for the amount of this ingredient used in the batch.
+  function ingredientValues(ing) {
+    if (!isNum(ing.amount) || ing.amount <= 0) {
+      return { kcal: null, protein: null, carbs: null, fat: null };
+    }
+    return scaleValues(ing, ing.amount / (ing.unit === 'item' ? 1 : 100));
+  }
+
+  // Totals for the whole batch. A macro total is null unless every ingredient has that
+  // macro, because a partial sum would silently understate it.
   function recipeTotals(ingredients) {
-    const out = { kcal: 0, rawWeight: 0 };
+    const out = { kcal: 0 };
     MACROS.forEach((k) => { out[k] = 0; });
     ingredients.forEach((ing) => {
-      const f = ing.grams / 100;
-      out.rawWeight += ing.grams;
-      out.kcal += ing.kcalPer100g * f;
+      const v = ingredientValues(ing);
+      out.kcal = out.kcal === null || !isNum(v.kcal) ? null : out.kcal + v.kcal;
       MACROS.forEach((k) => {
-        out[k] = out[k] === null || !isNum(ing[k]) ? null : out[k] + ing[k] * f;
+        out[k] = out[k] === null || !isNum(v[k]) ? null : out[k] + v[k];
       });
     });
     return out;
@@ -205,6 +238,10 @@
     return scaleValues(vals, 1 / divisor);
   }
 
+  function recipeCanLogGrams(recipe) {
+    return isNum(recipe.cookedWeight) && recipe.cookedWeight > 0;
+  }
+
   function recipePerGram(recipe) {
     return divideValues(recipeTotals(recipe.ingredients), recipe.cookedWeight);
   }
@@ -213,7 +250,20 @@
     return divideValues(recipeTotals(recipe.ingredients), recipe.portions);
   }
 
-  // Values for a log entry: by { portions } (fractions allowed) or by { grams } of the cooked batch.
+  // Weight of one portion in grams, or null without a cooked weight or portions.
+  function recipePortionWeight(recipe) {
+    if (!recipeCanLogGrams(recipe) || !isNum(recipe.portions) || recipe.portions <= 0) return null;
+    return recipe.cookedWeight / recipe.portions;
+  }
+
+  // Values per log-entry unit: per portion for 'portion', per 100 g of cooked batch for 'g'.
+  function recipeUnitValues(recipe, unit) {
+    if (unit === 'portion') return recipePerPortion(recipe);
+    if (unit === 'g') return scaleValues(recipePerGram(recipe), 100);
+    throw new Error('Unknown recipe unit: ' + unit);
+  }
+
+  // Values for a serving: by { portions } (fractions allowed) or by { grams } of the cooked batch.
   function recipeServing(recipe, amount) {
     if (amount && isNum(amount.portions)) {
       return scaleValues(recipePerPortion(recipe), amount.portions);
@@ -222,6 +272,48 @@
       return scaleValues(recipePerGram(recipe), amount.grams);
     }
     throw new Error('recipeServing needs { portions } or { grams }');
+  }
+
+  // Entry fields (without id, date or created) for quantity portions ('portion') or grams ('g')
+  // of a recipe. sourceId is the saved recipe's id, or null for an unsaved batch.
+  function entryFromRecipe(recipe, quantity, unit, sourceId) {
+    const v = recipeUnitValues(recipe, unit);
+    return {
+      name: recipe.name,
+      source: 'recipe',
+      sourceId: sourceId || null,
+      quantity: quantity,
+      unit: unit,
+      perAmount: unit === 'g' ? 100 : 1,
+      kcal: v.kcal,
+      protein: v.protein,
+      carbs: v.carbs,
+      fat: v.fat,
+    };
+  }
+
+  function sameValues(a, b) {
+    return ['kcal'].concat(MACROS).every((k) => orNull(a[k]) === orNull(b[k]));
+  }
+
+  // True if a recipe's per-portion or per-100 g values differ. A rename alone is not a change.
+  function recipeChanged(a, b) {
+    return !sameValues(recipeUnitValues(a, 'portion'), recipeUnitValues(b, 'portion')) ||
+      !sameValues(recipeUnitValues(a, 'g'), recipeUnitValues(b, 'g'));
+  }
+
+  // Starting amount when logging a saved recipe: the quantity and unit of the most recent
+  // linked entry, or 1 portion if it has never been logged.
+  function defaultRecipeAmount(recipe, entries) {
+    let latest = null;
+    (entries || []).forEach((e) => {
+      if (isLinked(e, recipe) && isNum(e.quantity) && e.quantity > 0 &&
+          (!latest || (e.created || 0) > (latest.created || 0))) {
+        latest = e;
+      }
+    });
+    if (latest) return { quantity: latest.quantity, unit: latest.unit };
+    return { quantity: 1, unit: 'portion' };
   }
 
   // ---------- Display (round for display only) ----------
@@ -459,9 +551,11 @@
     entriesForDate, searchRecent, searchByName, defaultQty, macroStatus,
     scaleNullable, foodEntryUnit, entryTotals, entryFromFood, entryFromQuick, setEntryQuantity,
     setEntryNutrition, nutritionChanged,
-    linkedEntryCounts, applyFoodToEntries,
+    isRecipe, linkedEntryCounts, applyToEntries,
     sumEntries,
-    recipeTotals, recipePerGram, recipePerPortion, recipeServing,
+    ingredientFromFood, ingredientValues, recipeTotals, recipeCanLogGrams, recipePerGram,
+    recipePerPortion, recipePortionWeight, recipeUnitValues, recipeServing, entryFromRecipe,
+    recipeChanged, defaultRecipeAmount,
     fmtKcal, fmtMacro,
     SCHEMA_VERSION, emptyData, migrate, countData, buildExport, parseImport, isBackupStale,
   };
