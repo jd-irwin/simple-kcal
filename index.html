@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
+  <title>Batch kcal</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="calc.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <main>
+    <section id="screen-today" class="screen" data-screen="today">
+      <h1>Today</h1>
+      <p class="placeholder">Your daily log will appear here.</p>
+    </section>
+
+    <section id="screen-add" class="screen" data-screen="add" hidden>
+      <h1>Add</h1>
+      <p class="placeholder">Search your foods, add a new food or use quick add.</p>
+    </section>
+
+    <section id="screen-library" class="screen" data-screen="library" hidden>
+      <h1>Library</h1>
+      <p class="placeholder">Your saved foods and recipes will appear here.</p>
+    </section>
+
+    <section id="screen-history" class="screen" data-screen="history" hidden>
+      <h1>History</h1>
+      <p class="placeholder">A calendar of past days will appear here.</p>
+    </section>
+
+    <section id="screen-settings" class="screen" data-screen="settings" hidden>
+      <h1>Settings</h1>
+      <p class="placeholder">Export and import will appear here.</p>
+      <p class="muted">Version <span id="app-version"></span></p>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Main">
+    <button type="button" data-tab="today" aria-current="page">Today</button>
+    <button type="button" data-tab="add">Add</button>
+    <button type="button" data-tab="library">Library</button>
+    <button type="button" data-tab="history">History</button>
+    <button type="button" data-tab="settings">Settings</button>
+  </nav>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# Data backups must never be committed
+*.json
+!manifest.json
+
+# OS files
+.DS_Store
+Thumbs.db
