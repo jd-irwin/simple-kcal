@@ -119,6 +119,29 @@ test('changing quantity rescales without changing per-unit values', () => {
   approx(Calc.entryTotals(e2).kcal / Calc.entryTotals(e).kcal, 4 / 3);
 });
 
+test('setEntryNutrition changes per-unit values only', () => {
+  const e = Object.assign({ id: 'x', date: '2026-11-20' }, Calc.entryFromFood(oats, 150, 'oats'));
+  const e2 = Calc.setEntryNutrition(e, { kcal: 400, protein: 14, carbs: undefined, fat: null });
+  assert.equal(e.kcal, 380); // original untouched
+  assert.equal(e2.kcal, 400);
+  assert.equal(e2.carbs, null);
+  assert.equal(e2.fat, null);
+  assert.equal(e2.quantity, 150);
+  assert.equal(e2.unit, 'g');
+  assert.equal(e2.perAmount, 100);
+  assert.equal(e2.sourceId, 'oats');
+  approx(Calc.entryTotals(e2).kcal, 600);
+});
+
+test('nutritionChanged', () => {
+  const a = { name: 'Oats', unit: '100g', kcal: 380, protein: 13, carbs: null, fat: 7 };
+  assert.equal(Calc.nutritionChanged(a, Object.assign({}, a, { name: 'Porridge oats' })), false);
+  assert.equal(Calc.nutritionChanged(a, Object.assign({}, a, { carbs: undefined })), false);
+  assert.equal(Calc.nutritionChanged(a, Object.assign({}, a, { kcal: 370 })), true);
+  assert.equal(Calc.nutritionChanged(a, Object.assign({}, a, { carbs: 60 })), true);
+  assert.equal(Calc.nutritionChanged(a, Object.assign({}, a, { unit: 'item' })), true);
+});
+
 test('quick add totals equal its values', () => {
   const e = Calc.entryFromQuick({ name: '', kcal: 250, protein: 10, carbs: null, fat: undefined });
   assert.equal(e.unit, 'quick');

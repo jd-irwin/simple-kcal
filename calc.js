@@ -111,6 +111,22 @@
     return Object.assign({}, entry, { quantity: quantity });
   }
 
+  // A copy of the entry with new per-unit values. Quantity, unit and perAmount are kept.
+  function setEntryNutrition(entry, v) {
+    return Object.assign({}, entry, {
+      kcal: v.kcal,
+      protein: orNull(v.protein),
+      carbs: orNull(v.carbs),
+      fat: orNull(v.fat),
+    });
+  }
+
+  // True if a food's unit or per-unit values differ (null and missing count as equal).
+  function nutritionChanged(a, b) {
+    if (a.unit !== b.unit) return true;
+    return ['kcal'].concat(MACROS).some((k) => orNull(a[k]) !== orNull(b[k]));
+  }
+
   // True if the entry was logged from this saved food and its unit still matches the food's.
   function isLinked(entry, food) {
     return entry.source === 'food' && !!entry.sourceId && entry.sourceId === food.id &&
@@ -442,6 +458,7 @@
     fmtQty, formatAmount, formatEntryAmount, parseNumber,
     entriesForDate, searchRecent, searchByName, defaultQty, macroStatus,
     scaleNullable, foodEntryUnit, entryTotals, entryFromFood, entryFromQuick, setEntryQuantity,
+    setEntryNutrition, nutritionChanged,
     linkedEntryCounts, applyFoodToEntries,
     sumEntries,
     recipeTotals, recipePerGram, recipePerPortion, recipeServing,

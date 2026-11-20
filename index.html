@@ -129,10 +129,13 @@
     </form>
   </dialog>
 
-  <!-- New food (log it) or edit a saved food -->
+  <!-- New food: describe it, say how much was eaten, log it (and optionally save it) -->
   <dialog id="food-dialog" class="sheet">
     <form id="food-form" novalidate>
-      <h2 id="food-title">New food</h2>
+      <h2>New food</h2>
+
+      <h3 class="sheet-section">The food</h3>
+      <p class="muted small">As on the packet or label.</p>
       <label class="field">
         <span>Name</span>
         <input type="text" id="food-name" autocomplete="off" autocapitalize="sentences" enterkeyhint="next">
@@ -151,21 +154,66 @@
         <label class="field"><span>Carbs (g)</span><input type="text" id="food-carbs" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
         <label class="field"><span>Fat (g)</span><input type="text" id="food-fat" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
       </div>
-      <div id="food-log-fields">
-        <label class="field">
-          <span id="food-qty-label">Amount eaten (g)</span>
-          <input type="text" id="food-qty" inputmode="decimal" autocomplete="off">
-        </label>
-        <p id="food-preview" class="preview"></p>
-        <label class="check">
-          <input type="checkbox" id="food-save" checked> Save to my foods
-        </label>
+
+      <h3 class="sheet-section">What you ate</h3>
+      <label class="field">
+        <span id="food-qty-label">Amount eaten (g)</span>
+        <input type="text" id="food-qty" inputmode="decimal" autocomplete="off">
+      </label>
+      <p id="food-preview" class="preview"></p>
+
+      <p class="message error" hidden></p>
+      <label class="check">
+        <input type="checkbox" id="food-save" checked> Save to my foods for next time
+      </label>
+      <div class="button-row">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">Log</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Edit a saved food (Library) -->
+  <dialog id="edit-food-dialog" class="sheet">
+    <form id="edit-food-form" novalidate>
+      <h2>Edit saved food</h2>
+      <p class="note small">This changes the food in your Library. Entries already logged keep their values unless you choose to update them.</p>
+      <label class="field">
+        <span>Name</span>
+        <input type="text" id="edit-food-name" autocomplete="off" autocapitalize="sentences">
+      </label>
+      <fieldset class="field segmented">
+        <legend>Values are</legend>
+        <label><input type="radio" name="edit-food-unit" value="100g"> per 100 g</label>
+        <label><input type="radio" name="edit-food-unit" value="item"> per item</label>
+      </fieldset>
+      <label class="field">
+        <span id="edit-food-kcal-label">Calories per 100 g (kcal)</span>
+        <input type="text" id="edit-food-kcal" inputmode="decimal" autocomplete="off">
+      </label>
+      <div class="field-row">
+        <label class="field"><span>Protein (g)</span><input type="text" id="edit-food-protein" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
+        <label class="field"><span>Carbs (g)</span><input type="text" id="edit-food-carbs" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
+        <label class="field"><span>Fat (g)</span><input type="text" id="edit-food-fat" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
       </div>
       <p class="message error" hidden></p>
       <div class="button-row">
-        <button type="button" id="food-delete" class="btn btn-danger" hidden>Delete</button>
+        <button type="button" id="edit-food-delete" class="btn btn-danger">Delete</button>
         <button type="button" class="btn" data-close>Cancel</button>
-        <button type="submit" id="food-submit" class="btn btn-primary">Log</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- After editing a saved food: update entries already logged from it? -->
+  <dialog id="apply-dialog" class="sheet">
+    <form id="apply-form" novalidate>
+      <h2 id="apply-title"></h2>
+      <p id="apply-text" class="muted"></p>
+      <div class="button-stack">
+        <button type="button" id="apply-none" class="btn btn-primary" autofocus>Don't update</button>
+        <button type="button" id="apply-today" class="btn"></button>
+        <button type="button" id="apply-all" class="btn"></button>
       </div>
     </form>
   </dialog>
@@ -198,7 +246,8 @@
   <!-- Edit a log entry -->
   <dialog id="entry-dialog" class="sheet">
     <form id="entry-form" novalidate>
-      <h2>Edit entry</h2>
+      <h2>Edit log entry</h2>
+      <p id="entry-origin" class="muted small"></p>
       <label class="field">
         <span>Name</span>
         <input type="text" id="entry-name" autocomplete="off" autocapitalize="sentences" placeholder="optional">
@@ -210,6 +259,16 @@
           <input type="text" id="entry-qty" inputmode="decimal" autocomplete="off">
         </label>
         <p id="entry-preview" class="preview"></p>
+        <details id="entry-nutrition" class="nutrition">
+          <summary id="entry-nutrition-summary">Edit nutrition (per 100 g)</summary>
+          <p class="muted small">Changes this entry only. Use it if the wrong values were entered when logging.</p>
+          <label class="field"><span>Calories (kcal)</span><input type="text" id="entry-n-kcal" inputmode="decimal" autocomplete="off"></label>
+          <div class="field-row">
+            <label class="field"><span>Protein (g)</span><input type="text" id="entry-n-protein" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
+            <label class="field"><span>Carbs (g)</span><input type="text" id="entry-n-carbs" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
+            <label class="field"><span>Fat (g)</span><input type="text" id="entry-n-fat" inputmode="decimal" autocomplete="off" placeholder="unknown"></label>
+          </div>
+        </details>
       </div>
       <!-- Quick add entries: the numbers are the totals -->
       <div id="entry-quick-fields">

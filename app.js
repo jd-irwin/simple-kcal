@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '0.3.0';
+  const APP_VERSION = '0.4.0';
   const STORAGE_KEY = 'batchKcal.v1';
   const BANNER_SCREENS = ['today', 'settings'];
   const RECENTS_LIMIT = 20;
@@ -250,30 +250,47 @@
     afterLog(entry);
   }
 
-  // ---------- Food dialog (new food, or edit a saved food) ----------
+  // ---------- Shared food fields ----------
 
-  let editingFood = null; // null = new food mode
-
-  function foodUnit() {
-    return document.querySelector('input[name="food-unit"]:checked').value;
+  function checkedUnit(radioName) {
+    return document.querySelector('input[name="' + radioName + '"]:checked').value;
   }
 
+  // Reads name, unit, kcal and macros from a food form. Returns the values, or undefined after showing an error.
+  function readFoodFields(form, prefix, radioName) {
+    const name = $(prefix + '-name').value.trim();
+    if (!name) { formError(form, 'Enter a name for the food.'); $(prefix + '-name').focus(); return undefined; }
+    const kcal = readRequired(form, $(prefix + '-kcal'), 'calories', true);
+    if (kcal === undefined) return undefined;
+    const macros = readMacros(form, prefix);
+    if (!macros) return undefined;
+    return Object.assign({ name, unit: checkedUnit(radioName), kcal }, macros);
+  }
+
+  function fillFoodFields(prefix, radioName, f) {
+    $(prefix + '-name').value = f.name;
+    document.querySelector('input[name="' + radioName + '"][value="' + f.unit + '"]').checked = true;
+    $(prefix + '-kcal').value = numToField(f.kcal);
+    MACROS.forEach((k) => { $(prefix + '-' + k).value = numToField(f[k]); });
+  }
+
+  // ---------- New food (Add screen) ----------
+
   function updateFoodLabels() {
-    const unit = foodUnit();
+    const unit = checkedUnit('food-unit');
     $('food-kcal-label').textContent = 'Calories ' + unitText(unit) + ' (kcal)';
     $('food-qty-label').textContent = unit === '100g' ? 'Amount eaten (g)' : 'Number of items eaten';
-    if (!editingFood && $('food-qty').dataset.touched !== '1') {
+    if ($('food-qty').dataset.touched !== '1') {
       $('food-qty').value = unit === '100g' ? '100' : '1';
     }
     updateFoodPreview();
   }
 
   function updateFoodPreview() {
-    if (editingFood) return;
     const kcal = Calc.parseNumber($('food-kcal').value);
     const qty = Calc.parseNumber($('food-qty').value);
     if (!(kcal >= 0) || !(qty > 0)) { $('food-preview').textContent = ''; return; }
-    const vals = { unit: foodUnit(), kcal: kcal };
+    const vals = { unit: checkedUnit('food-unit'), kcal: kcal };
     MACROS.forEach((k) => {
       const n = Calc.parseNumber($('food-' + k).value);
       vals[k] = Number.isNaN(n) ? null : n;
@@ -281,47 +298,21 @@
     $('food-preview').textContent = 'Logs ' + valuesSummary(Calc.entryTotals(Calc.entryFromFood(vals, qty)));
   }
 
-  function openFoodDialog(food, prefillName) {
-    editingFood = food || null;
-    const f = food || { name: prefillName || '', unit: '100g', kcal: null, protein: null, carbs: null, fat: null };
-    $('food-title').textContent = food ? 'Edit food' : 'New food';
-    $('food-name').value = f.name;
-    document.querySelector('input[name="food-unit"][value="' + f.unit + '"]').checked = true;
-    $('food-kcal').value = numToField(f.kcal);
-    MACROS.forEach((k) => { $('food-' + k).value = numToField(f[k]); });
-    $('food-log-fields').hidden = !!food;
-    $('food-delete').hidden = !food;
-    $('food-submit').textContent = food ? 'Save' : 'Log';
+  function openNewFood(prefillName) {
+    fillFoodFields('food', 'food-unit', { name: prefillName || '', unit: '100g', kcal: null, protein: null, carbs: null, fat: null });
     $('food-save').checked = true;
     $('food-qty').dataset.touched = '';
     $('food-preview').textContent = '';
     updateFoodLabels();
-    const focus = food ? $('food-form').querySelector('[data-close]') : (f.name ? $('food-kcal') : $('food-name'));
-    openDialog($('food-dialog'), focus);
+    openDialog($('food-dialog'), prefillName ? $('food-kcal') : $('food-name'));
   }
 
-  function submitFood(e) {
+  function submitNewFood(e) {
     e.preventDefault();
     const form = $('food-form');
-    const name = $('food-name').value.trim();
-    if (!name) { formError(form, 'Enter a name for the food.'); $('food-name').focus(); return; }
-    const unit = foodUnit();
-    const kcal = readRequired(form, $('food-kcal'), 'calories', true);
-    if (kcal === undefined) return;
-    const macros = readMacros(form, 'food');
-    if (!macros) return;
-    const values = Object.assign({ name, unit, kcal }, macros);
-
-    if (editingFood) {
-      Object.assign(editingFood, values);
-      save();
-      $('food-dialog').close();
-      render();
-      toast('Saved ' + name + '.');
-      return;
-    }
-
-    const qty = readRequired(form, $('food-qty'), unit === '100g' ? 'amount eaten' : 'number of items', false);
+    const values = readFoodFields(form, 'food', 'food-unit');
+    if (!values) return;
+    const qty = readRequired(form, $('food-qty'), values.unit === '100g' ? 'amount eaten' : 'number of items', false);
     if (qty === undefined) return;
     let food = null;
     if ($('food-save').checked) {
@@ -333,16 +324,90 @@
     afterLog(entry);
   }
 
+  // ---------- Edit saved food (Library) ----------
+
+  let editingFood = null;
+
+  function updateEditFoodLabels() {
+    $('edit-food-kcal-label').textContent = 'Calories ' + unitText(checkedUnit('edit-food-unit')) + ' (kcal)';
+  }
+
+  function openEditFood(food) {
+    editingFood = food;
+    fillFoodFields('edit-food', 'edit-food-unit', food);
+    updateEditFoodLabels();
+    openDialog($('edit-food-dialog'), $('edit-food-form').querySelector('[data-close]'));
+  }
+
+  function submitEditFood(e) {
+    e.preventDefault();
+    const form = $('edit-food-form');
+    const values = readFoodFields(form, 'edit-food', 'edit-food-unit');
+    if (!values) return;
+    const food = editingFood;
+    const before = Object.assign({}, food);
+    Object.assign(food, values);
+    if (!save()) return;
+    $('edit-food-dialog').close();
+    render();
+
+    if (!Calc.nutritionChanged(before, food)) {
+      toast('Saved ' + food.name + '.');
+    } else if (before.unit !== food.unit) {
+      toast('Saved. Entries already logged keep their values because the unit changed.');
+    } else {
+      const counts = Calc.linkedEntryCounts(state.entries, food, todayKey);
+      if (counts.all === 0) toast('Saved ' + food.name + '.');
+      else openApply(food, counts);
+    }
+  }
+
   function deleteFood() {
     const food = editingFood;
-    if (!food) return;
     const index = state.foods.indexOf(food);
     state.foods.splice(index, 1);
     save();
-    $('food-dialog').close();
+    $('edit-food-dialog').close();
     render();
-    toast('Deleted ' + food.name + '. Past log entries are unchanged.', () => {
+    toast('Deleted ' + food.name + '. Logged entries are unchanged.', () => {
       state.foods.splice(Math.min(index, state.foods.length), 0, food);
+      save();
+      render();
+    });
+  }
+
+  // ---------- Apply a food edit to logged entries ----------
+
+  let applyFood = null;
+  let applyCounts = null;
+
+  function openApply(food, counts) {
+    applyFood = food;
+    applyCounts = counts;
+    $('apply-title').textContent = 'Update entries already logged from ' + food.name + '?';
+    $('apply-text').textContent = 'Amounts stay the same; only the ' + unitText(food.unit) +
+      ' values change. Entries from unsaved foods and quick adds are never affected.';
+    $('apply-today').textContent = 'Today’s entries (' + counts.today + ')';
+    $('apply-today').hidden = counts.today === 0 || counts.today === counts.all;
+    $('apply-all').textContent = counts.all === 1 ? 'The 1 logged entry' : 'All ' + counts.all + ' logged entries';
+    $('apply-dialog').showModal();
+    $('apply-none').focus();
+  }
+
+  function applyChoice(scope) {
+    $('apply-dialog').close();
+    const food = applyFood;
+    if (scope === 'none') {
+      toast('Saved ' + food.name + '. Logged entries unchanged.');
+      return;
+    }
+    const n = scope === 'today' ? applyCounts.today : applyCounts.all;
+    const previous = state.entries;
+    state.entries = Calc.applyFoodToEntries(previous, food, scope, todayKey);
+    save();
+    render();
+    toast('Saved ' + food.name + ' and updated ' + plural(n, 'entry', 'entries') + '.', () => {
+      state.entries = previous;
       save();
       render();
     });
@@ -367,7 +432,7 @@
     afterLog(entry);
   }
 
-  // ---------- Edit entry ----------
+  // ---------- Edit log entry ----------
 
   let editingEntry = null;
 
@@ -375,9 +440,30 @@
     return entry.unit === 'quick';
   }
 
+  function perText(entry) {
+    if (entry.unit === 'g') return 'per 100 g';
+    if (entry.unit === 'portion') return 'per portion';
+    return 'per item';
+  }
+
+  // Where the entry came from. The saved food is only used for its name; no values are read.
+  function entryOrigin(entry) {
+    let src = '';
+    if (entry.source === 'quick') {
+      src = 'Quick add';
+    } else if (entry.source === 'food') {
+      const food = entry.sourceId ? state.foods.find((f) => f.id === entry.sourceId) : null;
+      if (!entry.sourceId) src = 'Not saved to your foods';
+      else if (food) src = 'From your saved food ' + food.name;
+      else src = 'From a food no longer in your Library';
+    }
+    return Calc.weekdayDate(entry.date) + (src ? ' · ' + src : '');
+  }
+
   function openEntry(entry) {
     editingEntry = entry;
     const quick = isQuickEntry(entry);
+    $('entry-origin').textContent = entryOrigin(entry);
     $('entry-name').value = entry.name || '';
     $('entry-amount-fields').hidden = quick;
     $('entry-quick-fields').hidden = !quick;
@@ -387,18 +473,32 @@
     } else {
       $('entry-qty-label').textContent = qtyLabel(entry.unit);
       $('entry-qty').value = Calc.fmtQty(entry.quantity);
+      $('entry-nutrition').open = false;
+      $('entry-nutrition-summary').textContent = 'Edit nutrition (' + perText(entry) + ')';
+      $('entry-n-kcal').value = numToField(entry.kcal);
+      MACROS.forEach((k) => { $('entry-n-' + k).value = numToField(entry[k]); });
       updateEntryPreview();
     }
     $('entry-date').value = entry.date;
     openDialog($('entry-dialog'), $('entry-form').querySelector('[data-close]'));
   }
 
+  // Per-unit values as currently typed in Edit nutrition; anything unreadable falls back to the entry's own.
+  function typedNutrition(entry) {
+    const out = {};
+    ['kcal'].concat(MACROS).forEach((k) => {
+      const n = Calc.parseNumber($('entry-n-' + k).value);
+      out[k] = Number.isNaN(n) || (k === 'kcal' && n === null) ? entry[k] : n;
+    });
+    return out;
+  }
+
   // Live totals from the entry's own per-unit values. Nothing is looked up.
   function updateEntryPreview() {
     if (!editingEntry || isQuickEntry(editingEntry)) return;
     const qty = Calc.parseNumber($('entry-qty').value);
-    $('entry-preview').textContent = qty > 0
-      ? valuesSummary(Calc.entryTotals(Calc.setEntryQuantity(editingEntry, qty))) : '';
+    const preview = Calc.setEntryNutrition(Calc.setEntryQuantity(editingEntry, qty), typedNutrition(editingEntry));
+    $('entry-preview').textContent = qty > 0 ? valuesSummary(Calc.entryTotals(preview)) : '';
   }
 
   function submitEntry(e) {
@@ -410,11 +510,15 @@
       if (kcal === undefined) return;
       const macros = readMacros(form, 'entry');
       if (!macros) return;
-      updated = Object.assign({}, editingEntry, macros, { kcal });
+      updated = Calc.setEntryNutrition(editingEntry, Object.assign({ kcal }, macros));
     } else {
       const qty = readRequired(form, $('entry-qty'), 'amount', false);
       if (qty === undefined) return;
-      updated = Calc.setEntryQuantity(editingEntry, qty);
+      // The nutrition fields are prefilled with the entry's own values, so if they were not
+      // touched this writes the same values back.
+      const nutrition = typedNutritionStrict(form);
+      if (!nutrition) { $('entry-nutrition').open = true; return; }
+      updated = Calc.setEntryNutrition(Calc.setEntryQuantity(editingEntry, qty), nutrition);
     }
     const date = $('entry-date').value;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { formError(form, 'Choose a date.'); return; }
@@ -426,6 +530,15 @@
     $('entry-dialog').close();
     render();
     toast(date === selectedDate ? 'Entry saved.' : 'Entry moved to ' + Calc.formatDate(date) + '.');
+  }
+
+  // Edit nutrition fields with validation. Returns values, or undefined after showing an error.
+  function typedNutritionStrict(form) {
+    const kcal = readRequired(form, $('entry-n-kcal'), 'calories ' + perText(editingEntry), true);
+    if (kcal === undefined) return undefined;
+    const macros = readMacros(form, 'entry-n');
+    if (!macros) return undefined;
+    return Object.assign({ kcal }, macros);
   }
 
   function deleteEntry() {
@@ -596,7 +709,7 @@
         empty.append(el('p', null, 'No saved foods match “' + query + '”.'));
         const btn = el('button', 'btn btn-primary', 'Add “' + query + '” as a new food');
         btn.type = 'button';
-        btn.addEventListener('click', () => openFoodDialog(null, query));
+        btn.addEventListener('click', () => openNewFood(query));
         empty.append(btn);
       } else {
         empty.append(el('p', null, 'No saved foods yet. Tap New food to add one; it will appear here next time.'));
@@ -611,7 +724,7 @@
     const list = $('library-list');
     list.replaceChildren();
     foods.forEach((food) => {
-      list.append(foodRow(food, () => openFoodDialog(food), Calc.fmtKcal(food.kcal) + ' kcal'));
+      list.append(foodRow(food, () => openEditFood(food), Calc.fmtKcal(food.kcal) + ' kcal'));
     });
     const empty = $('library-empty');
     if (state.foods.length === 0) {
@@ -688,7 +801,7 @@
 
     // Add
     $('food-search').addEventListener('input', renderAdd);
-    $('new-food-btn').addEventListener('click', () => openFoodDialog(null, $('food-search').value.trim()));
+    $('new-food-btn').addEventListener('click', () => openNewFood($('food-search').value.trim()));
     $('quick-add-btn').addEventListener('click', openQuick);
 
     // Library
@@ -700,14 +813,22 @@
     });
     $('amount-form').addEventListener('submit', submitAmount);
     $('amount-qty').addEventListener('input', updateAmountPreview);
-    $('food-form').addEventListener('submit', submitFood);
+    $('food-form').addEventListener('submit', submitNewFood);
     $('food-form').addEventListener('input', updateFoodPreview);
     $('food-qty').addEventListener('input', () => { $('food-qty').dataset.touched = '1'; });
     document.querySelectorAll('input[name="food-unit"]').forEach((r) => r.addEventListener('change', updateFoodLabels));
-    $('food-delete').addEventListener('click', deleteFood);
+    $('edit-food-form').addEventListener('submit', submitEditFood);
+    document.querySelectorAll('input[name="edit-food-unit"]').forEach((r) => r.addEventListener('change', updateEditFoodLabels));
+    $('edit-food-delete').addEventListener('click', deleteFood);
+    $('apply-none').addEventListener('click', () => applyChoice('none'));
+    $('apply-today').addEventListener('click', () => applyChoice('today'));
+    $('apply-all').addEventListener('click', () => applyChoice('all'));
+    $('apply-dialog').addEventListener('cancel', (e) => { e.preventDefault(); applyChoice('none'); });
+    $('apply-form').addEventListener('submit', (e) => e.preventDefault());
     $('quick-form').addEventListener('submit', submitQuick);
     $('entry-form').addEventListener('submit', submitEntry);
     $('entry-qty').addEventListener('input', updateEntryPreview);
+    $('entry-nutrition').addEventListener('input', updateEntryPreview);
     $('entry-delete').addEventListener('click', deleteEntry);
 
     // Toast
