@@ -26,9 +26,9 @@ test('sw.js precaches exactly the app files', () => {
   assert.deepEqual(listed.filter((f) => f !== './').sort(), appFiles.sort());
 });
 
-test('app.js and sw.js declare the same version', () => {
+test('version.js and sw.js declare the same version', () => {
   const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
-  const appVersion = read('app.js').match(/const APP_VERSION = '([^']+)'/);
+  const appVersion = read('version.js').match(/const APP_VERSION = '([^']+)'/);
   const swVersion = read('sw.js').match(/const VERSION = '([^']+)'/);
   assert.ok(appVersion && swVersion, 'version constants not found');
   assert.equal(appVersion[1], swVersion[1]);

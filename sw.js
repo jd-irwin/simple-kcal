@@ -1,5 +1,5 @@
 // Service worker: precaches the app and serves it cache-first so it works offline.
-// Bump VERSION (and APP_VERSION in app.js to match) for every release: the new cache
+// Bump VERSION (and APP_VERSION in version.js to match) for every release: the new cache
 // replaces the old one and the new build loads the next time the app is opened.
 'use strict';
 
@@ -19,6 +19,23 @@ const FILES = [
   'calc/search.js',
   'calc/data.js',
   'app.js',
+  'version.js',
+  'ui/add.js',
+  'ui/amount.js',
+  'ui/apply.js',
+  'ui/dom.js',
+  'ui/entry.js',
+  'ui/food.js',
+  'ui/history.js',
+  'ui/library.js',
+  'ui/log.js',
+  'ui/messages.js',
+  'ui/nav.js',
+  'ui/recipe.js',
+  'ui/settings.js',
+  'ui/store.js',
+  'ui/text.js',
+  'ui/today.js',
   'manifest.json',
   'icons/icon-192.png',
   'icons/icon-512.png',
