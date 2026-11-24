@@ -1,4 +1,4 @@
-import Calc from './calc.js';
+import Calc from './calc/index.js';
 
 const APP_VERSION = '0.7.0'; // must match VERSION in sw.js (checked by test.js)
 // Kept from the app's earlier name: renaming it would orphan data already on the phone.
