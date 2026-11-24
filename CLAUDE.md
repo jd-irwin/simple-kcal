@@ -9,7 +9,7 @@ The owner is the only user. They open it several times a day, often in a kitchen
 - Start every task in plan mode: read this file, propose the approach, wait for approval.
 - Build one stage at a time (see Build order). Commit after each stage with a short message. Do not start the next stage without being asked.
 - No frameworks, no build step, no npm dependencies, no external network requests of any kind (no CDNs, fonts, analytics, APIs). Plain HTML, CSS and JavaScript.
-- Keep calculation logic in pure functions in their own file (`calc.js`) with a small dependency-free test script runnable with `node`. UI code calls these functions and does no arithmetic of its own.
+- Keep calculation logic in pure functions in `calc/`, tested by a small dependency-free test script runnable with `node`. UI code calls these functions and does no arithmetic of its own.
 - Use UK English in all UI text. Energy in kcal, weight in grams, dates displayed DD/MM/YYYY.
 - Keep it simple. If a feature is not listed here, ask before adding it.
 - A prototype `index.html` (single-file batch calculator) may exist in the repo. It is a reference only and will be replaced.
@@ -89,7 +89,20 @@ Three collections, plus settings. All ids are short random strings.
 
 ## App structure and UX
 
-Files: `index.html`, `style.css`, `app.js`, `calc.js`, `manifest.json`, `sw.js`, icons. Use relative paths throughout, because GitHub Pages serves from `/<repo-name>/`.
+Files: `index.html`, `style.css`, `app.js`, `version.js`, `calc/`, `ui/`, `manifest.json`, `sw.js`, `icons/`. Use relative paths throughout, because GitHub Pages serves from `/<repo-name>/`.
+
+The JavaScript is ES modules (`<script type="module">`), so the app must be served over HTTP, not opened as a file. `package.json` exists only to tell Node the files are modules; it has no dependencies and must not gain any.
+
+- `app.js`: entry point. Loads data, calls each module's `init()`, draws the app, registers the service worker.
+- `version.js`: `APP_VERSION`, shown in Settings.
+- `calc/`: pure calculation, no DOM or storage. `calc/index.js` gathers everything into one `Calc` object, which the UI and tests import. `values.js` (shared helpers), `dates.js`, `entries.js`, `recipes.js`, `totals.js`, `format.js`, `search.js`, `data.js` (schema, migration, backup).
+- `ui/`: one module per screen (`today`, `add`, `library`, `history`, `settings`) and per dialog (`amount`, `food`, `apply`, `recipe`, `ingredient`, `entry` with quick add), plus shared modules:
+  - `store.js` holds the data and session state in the `app` object. After changing `app.state`, call `commit()`: it saves and redraws. Do not call save and render separately.
+  - `nav.js` handles tabs, the selected day and `render()`. Screens register their render function with `registerScreen`, so no module needs to import every screen.
+  - `dom.js`, `text.js`, `messages.js`, `log.js` hold shared helpers, display text, toasts and the logging flow.
+- Avoid import cycles between UI modules. When a dialog needs to update its caller, pass a callback (as `ingredient.js` does) instead of importing the caller.
+
+Releasing: bump `APP_VERSION` in `version.js` and `VERSION` in `sw.js` together. Every app file must be listed in `FILES` in `sw.js`. `node test.js` checks both.
 
 Screens, bottom tab bar:
 1. **Today (home).** Date selector (previous/next day), total kcal, macro breakdown, list of entries with edit and delete. Prominent Add button.
@@ -122,7 +135,8 @@ Design principles:
 
 ## Testing
 
-- `node test.js` runs the calculation tests: recipe per-portion and per-gram maths, partial-macro totals, local-date handling around midnight and the BST change, fractional portions, entry totals from quantity and per-unit values (including `perAmount` 100 for grams), changing an entry's quantity, quick add entries, and applying an edited food's values to linked entries only.
+- `node test.js` runs the calculation tests in `tests/*.test.js` (one file per `calc/` area): recipe per-portion and per-gram maths, partial-macro totals, local-date handling around midnight and the BST change, fractional portions, entry totals from quantity and per-unit values (including `perAmount` 100 for grams), changing an entry's quantity, quick add entries, and applying an edited food's values to linked entries only. It also checks the repository: the version numbers match, `sw.js` precaches exactly the app files, and every `ui/` module loads with its imports resolved.
+- `node tests/smoke.js` runs the manual checklist below automatically, in headless Chrome against the real app (`tests/smoke.html`). It needs Chrome or Chromium installed (set `CHROME_PATH` if it is not found). It only clicks, types and reads the page, never calls app internals, so it stays valid through refactors. Run it and `node test.js` before every commit.
 - Manual checklist after each stage: add a food saved and unsaved, quick add with no name, edit and delete an entry, check totals, export then import on a cleared browser, reload offline.
 - Check numbers against a calculator for the first few real entries.
 
