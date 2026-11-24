@@ -1,6 +1,7 @@
 # Data backups must never be committed
 *.json
 !manifest.json
+!package.json
 
 # OS files
 .DS_Store

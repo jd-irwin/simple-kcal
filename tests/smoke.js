@@ -2,14 +2,14 @@
 // Run with: node tests/smoke.js   (needs Chrome or Chromium; set CHROME_PATH if it is not found)
 // No dependencies: a tiny static server plus Chrome, which posts the results back.
 
-'use strict';
-const http = require('node:http');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawn } = require('node:child_process');
+import http from 'node:http';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TIMEOUT_MS = 60000;
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
