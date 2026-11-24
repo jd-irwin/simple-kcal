@@ -3,7 +3,7 @@
 // replaces the old one and the new build loads the next time the app is opened.
 'use strict';
 
-const VERSION = '0.6.0';
+const VERSION = '0.7.0';
 const CACHE = 'simple-kcal-' + VERSION;
 const FILES = [
   './',

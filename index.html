@@ -80,8 +80,21 @@
 
     <!-- History -->
     <section id="screen-history" class="screen" data-screen="history" hidden>
-      <h1>History</h1>
-      <p class="placeholder">A calendar of past days will appear here.</p>
+      <div class="date-nav">
+        <button type="button" id="prev-month" class="icon-btn" aria-label="Previous month">&#8249;</button>
+        <button type="button" id="month-title-btn" class="day-title" aria-label="Go to this month">
+          <span id="month-title"></span>
+          <span class="muted small">kcal per day</span>
+        </button>
+        <button type="button" id="next-month" class="icon-btn" aria-label="Next month">&#8250;</button>
+      </div>
+      <div class="cal" id="calendar">
+        <div class="cal-head" aria-hidden="true">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="cal-days" id="cal-days"></div>
+      </div>
+      <p class="muted small cal-hint">Tap a day to see its log.</p>
     </section>
 
     <!-- Settings -->

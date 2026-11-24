@@ -578,3 +578,59 @@ h2 + h3.sheet-section {
 #food-empty .btn + .btn {
   margin-top: 8px;
 }
+
+/* ---------- History calendar ---------- */
+
+.cal-head,
+.cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.cal-head {
+  margin-bottom: 4px;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.cal-day {
+  min-width: 0;
+  min-height: 56px;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.cal-day.is-today {
+  border: 2px solid var(--accent);
+}
+
+.cal-day:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.cal-num {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.cal-kcal {
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-hint {
+  margin-top: 12px;
+  text-align: center;
+}

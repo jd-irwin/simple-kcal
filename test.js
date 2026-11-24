@@ -646,5 +646,84 @@ test('macroStatus', () => {
   assert.equal(Calc.macroStatus({ total: 5, known: 3 }, 3), 'complete');
 });
 
+// ---------- Calendar ----------
+
+test('addMonths rolls over years both ways', () => {
+  assert.deepEqual(Calc.addMonths(2026, 12, 1), { y: 2027, m: 1 });
+  assert.deepEqual(Calc.addMonths(2027, 1, -1), { y: 2026, m: 12 });
+  assert.deepEqual(Calc.addMonths(2026, 11, 0), { y: 2026, m: 11 });
+  assert.deepEqual(Calc.addMonths(2026, 11, -23), { y: 2024, m: 12 });
+  assert.deepEqual(Calc.addMonths(2026, 11, 14), { y: 2028, m: 1 });
+});
+
+test('formatMonth', () => {
+  assert.equal(Calc.formatMonth(2026, 11), 'November 2026');
+  assert.equal(Calc.formatMonth(2027, 1), 'January 2027');
+});
+
+// Every day of the month appears once, in order, with only nulls around it.
+function checkGrid(weeks, y, m, daysInMonth) {
+  weeks.forEach((w) => assert.equal(w.length, 7));
+  const days = weeks.flat().filter(Boolean);
+  assert.equal(days.length, daysInMonth);
+  days.forEach((k, i) => assert.equal(k, y + '-' + String(m).padStart(2, '0') + '-' + String(i + 1).padStart(2, '0')));
+}
+
+test('monthGrid: month starting on a Sunday puts the 1st in the last column', () => {
+  const g = Calc.monthGrid(2026, 11); // 1 November 2026 is a Sunday
+  assert.deepEqual(g[0], [null, null, null, null, null, null, '2026-11-01']);
+  assert.equal(g.length, 6);
+  checkGrid(g, 2026, 11, 30);
+});
+
+test('monthGrid: month starting on a Monday has no leading blanks', () => {
+  const g = Calc.monthGrid(2026, 6); // 1 June 2026 is a Monday
+  assert.equal(g[0][0], '2026-06-01');
+  assert.equal(g.length, 5);
+  checkGrid(g, 2026, 6, 30);
+});
+
+test('monthGrid: 28-day February starting on a Monday is exactly four weeks', () => {
+  const g = Calc.monthGrid(2027, 2);
+  assert.equal(g.length, 4);
+  assert.equal(g[3][6], '2027-02-28');
+  checkGrid(g, 2027, 2, 28);
+});
+
+test('monthGrid: leap-year February has 29 days', () => {
+  checkGrid(Calc.monthGrid(2028, 2), 2028, 2, 29);
+});
+
+test('monthGrid: BST change months have no missing or repeated days', () => {
+  const oct = Calc.monthGrid(2026, 10); // clocks go back 25/10/2026
+  checkGrid(oct, 2026, 10, 31);
+  const mar = Calc.monthGrid(2027, 3); // clocks go forward 28/03/2027
+  checkGrid(mar, 2027, 3, 31);
+  // 28 March 2027 is a Sunday, so it sits in the last column.
+  assert.ok(mar.some((w) => w[6] === '2027-03-28'));
+});
+
+test('dailyKcal sums grams, portions and quick add per day', () => {
+  const oats = { id: 'f1', name: 'Oats', unit: '100g', kcal: 380, protein: 13, carbs: 60, fat: 7 };
+  const recipe = Object.assign({ name: 'Porridge' }, porridge);
+  const entries = [
+    Object.assign({ date: '2026-11-20' }, Calc.entryFromFood(oats, 50, 'f1')),          // 190
+    Object.assign({ date: '2026-11-20' }, Calc.entryFromRecipe(recipe, 1.5, 'portion', 'r1')), // 378.75
+    Object.assign({ date: '2026-11-20' }, Calc.entryFromQuick({ kcal: 100 })),           // 100
+    Object.assign({ date: '2026-11-21' }, Calc.entryFromRecipe(recipe, 300, 'g', null)),  // 378.75
+  ];
+  const t = Calc.dailyKcal(entries);
+  approx(t['2026-11-20'], 668.75);
+  approx(t['2026-11-21'], 378.75);
+  assert.deepEqual(Object.keys(t).sort(), ['2026-11-20', '2026-11-21']);
+});
+
+test('dailyKcal: a day of 0 kcal entries is 0, a day with no entries is absent', () => {
+  const t = Calc.dailyKcal([Object.assign({ date: '2026-11-22' }, Calc.entryFromQuick({ name: 'Water', kcal: 0 }))]);
+  assert.equal(t['2026-11-22'], 0);
+  assert.equal('2026-11-23' in t, false);
+  assert.deepEqual(Calc.dailyKcal([]), {});
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

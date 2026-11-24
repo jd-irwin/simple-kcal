@@ -36,6 +36,46 @@
     return pad2(p.d) + '/' + pad2(p.m) + '/' + p.y;
   }
 
+  // ---------- Calendar (months are 1-12) ----------
+
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+
+  // { y, m } n months from y/m, rolling over years.
+  function addMonths(y, m, n) {
+    const i = y * 12 + (m - 1) + n;
+    return { y: Math.floor(i / 12), m: (i % 12 + 12) % 12 + 1 };
+  }
+
+  // 'November 2026'
+  function formatMonth(y, m) {
+    return MONTHS[m - 1] + ' ' + y;
+  }
+
+  // Weeks (Monday first) of date keys for a month; days outside the month are null.
+  function monthGrid(y, m) {
+    const first = new Date(y, m - 1, 1, 12);
+    const daysInMonth = new Date(y, m, 0, 12).getDate();
+    const lead = (first.getDay() + 6) % 7; // Monday = 0
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(y + '-' + pad2(m) + '-' + pad2(d));
+    while (cells.length % 7) cells.push(null);
+    const weeks = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    return weeks;
+  }
+
+  // { 'YYYY-MM-DD': total kcal } for every date that has at least one entry.
+  function dailyKcal(entries) {
+    const totals = {};
+    for (const e of entries) {
+      const kcal = entryTotals(e).kcal;
+      totals[e.date] = (totals[e.date] || 0) + (isNum(kcal) ? kcal : 0);
+    }
+    return totals;
+  }
+
   // ---------- Scaling ----------
 
   function isNum(v) {
@@ -587,6 +627,7 @@
 
   const Calc = {
     dateKey, addDays, formatDate, weekdayDate, dayTitle,
+    addMonths, formatMonth, monthGrid, dailyKcal,
     fmtQty, formatAmount, formatEntryAmount, parseNumber,
     entriesForDate, searchRecent, searchByName, defaultQty, macroStatus,
     scaleNullable, foodEntryUnit, entryTotals, entryFromFood, entryFromQuick, setEntryQuantity,
