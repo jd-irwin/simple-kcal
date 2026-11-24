@@ -1,4 +1,4 @@
-# Batch kcal: project spec
+# simple-kcal: project spec
 
 A personal calorie and macro tracker that runs as a home-screen web app on one phone. Hosted as static files on GitHub Pages. All data stays on the device.
 

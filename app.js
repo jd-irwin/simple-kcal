@@ -1,7 +1,8 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '0.5.0';
+  const APP_VERSION = '0.6.0'; // must match VERSION in sw.js (checked by test.js)
+  // Kept from the app's earlier name: renaming it would orphan data already on the phone.
   const STORAGE_KEY = 'batchKcal.v1';
   const BANNER_SCREENS = ['today', 'settings'];
   const RECENTS_LIMIT = 20;
@@ -924,7 +925,7 @@
     clearMessage();
     const now = new Date();
     const json = JSON.stringify(Calc.buildExport(state, now.toISOString()), null, 2);
-    const filename = 'batch-kcal-backup-' + Calc.dateKey(now) + '.json';
+    const filename = 'simple-kcal-backup-' + Calc.dateKey(now) + '.json';
     const file = new File([json], filename, { type: 'application/json' });
 
     const touch = window.matchMedia('(pointer: coarse)').matches;
@@ -1255,6 +1256,13 @@
 
     render();
     if (startupNotice) toast(startupNotice);
+    registerServiceWorker();
+  }
+
+  // Offline support. Skipped when opened as a local file; a failure only means no offline cache.
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
   // Exposed for console debugging.

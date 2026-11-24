@@ -427,7 +427,9 @@
   // ---------- Data, migration, backup ----------
 
   const SCHEMA_VERSION = 2;
-  const APP_ID = 'batch-kcal';
+  const APP_ID = 'simple-kcal';
+  // Backups exported before the rename carry the old id and must still import.
+  const ACCEPTED_APP_IDS = [APP_ID, 'batch-kcal'];
 
   function emptyData() {
     return {
@@ -562,8 +564,8 @@
     } catch (e) {
       throw new Error('That file could not be read. Choose a backup file exported from this app.');
     }
-    if (!obj || typeof obj !== 'object' || obj.app !== APP_ID) {
-      throw new Error('That file is not a Batch kcal backup.');
+    if (!obj || typeof obj !== 'object' || !ACCEPTED_APP_IDS.includes(obj.app)) {
+      throw new Error('That file is not a simple-kcal backup.');
     }
     const data = migrate({
       schemaVersion: obj.schemaVersion,

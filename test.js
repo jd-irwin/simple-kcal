@@ -537,8 +537,28 @@ test('export then import round-trips', () => {
 
 test('parseImport gives clear errors', () => {
   assert.throws(() => Calc.parseImport('not json'), /could not be read/);
-  assert.throws(() => Calc.parseImport('{"foo":1}'), /not a Batch kcal backup/);
+  assert.throws(() => Calc.parseImport('{"foo":1}'), /not a simple-kcal backup/);
+  assert.throws(() => Calc.parseImport('{"app":"other-app","schemaVersion":2,"foods":[],"recipes":[],"entries":[]}'), /not a simple-kcal backup/);
   assert.throws(() => Calc.parseImport('{"app":"batch-kcal","schemaVersion":2,"foods":[],"recipes":[]}'), /entries/);
+});
+
+test('backups are stamped simple-kcal, and old batch-kcal backups still import', () => {
+  const exported = Calc.buildExport(Calc.emptyData(), '2026-11-24T10:00:00.000Z');
+  assert.equal(exported.app, 'simple-kcal');
+  for (const app of ['simple-kcal', 'batch-kcal']) {
+    const r = Calc.parseImport(JSON.stringify(Object.assign({}, exported, { app })));
+    assert.deepEqual(r.counts, { foods: 0, recipes: 0, entries: 0 });
+  }
+});
+
+test('app.js and sw.js declare the same version', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
+  const appVersion = read('app.js').match(/const APP_VERSION = '([^']+)'/);
+  const swVersion = read('sw.js').match(/const VERSION = '([^']+)'/);
+  assert.ok(appVersion && swVersion, 'version constants not found');
+  assert.equal(appVersion[1], swVersion[1]);
 });
 
 test('isBackupStale at the 7-day boundary', () => {
