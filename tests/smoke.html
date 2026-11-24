@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>simple-kcal smoke test</title>
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; }
+  iframe { border: 0; width: 400px; height: 800px; }
+</style>
+</head>
+<body>
+<iframe id="app"></iframe>
+<script>
+// Drives the real app in an iframe through its UI only (clicks, typing, form submits) and checks
+// what it shows. Never calls app internals, so it stays valid however the code is organised.
+// Run with: node tests/smoke.js   (posts results to the server that tests/smoke.js starts)
+'use strict';
+
+const frame = document.getElementById('app');
+const results = [];
+let pageErrors = [];
+let doc, win;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const pad2 = (n) => String(n).padStart(2, '0');
+const now = new Date();
+const TODAY = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
+const TODAY_UK = pad2(now.getDate()) + '/' + pad2(now.getMonth() + 1) + '/' + now.getFullYear();
+
+function loadApp() {
+  return new Promise((resolve) => {
+    frame.onload = () => {
+      win = frame.contentWindow;
+      doc = frame.contentDocument;
+      win.addEventListener('error', (e) => pageErrors.push(e.message));
+      win.addEventListener('unhandledrejection', (e) => pageErrors.push(String(e.reason)));
+      resolve();
+    };
+    frame.src = '../index.html?' + Date.now();
+  });
+}
+
+// ---------- UI helpers ----------
+
+function $(id) {
+  const node = doc.getElementById(id);
+  if (!node) throw new Error('No element #' + id);
+  return node;
+}
+const text = (id) => $(id).textContent.trim();
+const visible = (id) => !$(id).hidden && !$(id).closest('[hidden]');
+function type(id, value) {
+  const input = $(id);
+  input.value = value;
+  input.dispatchEvent(new win.Event('input', { bubbles: true }));
+}
+function radio(name, value) {
+  doc.querySelector('input[name="' + name + '"][value="' + value + '"]').click();
+}
+function tab(name) {
+  doc.querySelector('.tabbar [data-tab="' + name + '"]').click();
+}
+function submit(formId) {
+  $(formId).requestSubmit();
+}
+// Row buttons in a list, by their title.
+function rows(listId) {
+  return [...$(listId).querySelectorAll('.row')];
+}
+function rowTitles(listId) {
+  return rows(listId).map((r) => r.querySelector('.row-title').textContent);
+}
+function clickRow(listId, title, nth) {
+  const matches = rows(listId).filter((r) => r.querySelector('.row-title').textContent === title);
+  const row = matches[nth || 0];
+  if (!row) throw new Error('No row "' + title + '" in #' + listId + ' (has: ' + rowTitles(listId).join(', ') + ')');
+  row.click();
+}
+function dialogOpen(id) {
+  return $(id).open;
+}
+
+// ---------- Assertions ----------
+
+function eq(actual, expected, what) {
+  if (actual !== expected) {
+    throw new Error(what + ': expected ' + JSON.stringify(expected) + ', got ' + JSON.stringify(actual));
+  }
+}
+function ok(cond, what) {
+  if (!cond) throw new Error(what);
+}
+function totalIs(kcal) {
+  eq(text('total-kcal'), kcal, 'Today total kcal');
+}
+
+// ---------- Steps (each builds on the one before) ----------
+
+let exportedText = null;
+
+const steps = [
+  ['starts empty', async () => {
+    win.localStorage.clear();
+    await loadApp();
+    totalIs('0');
+    ok(visible('entry-empty'), 'empty-day message shown');
+    eq(text('day-title'), 'Today', 'day title');
+  }],
+
+  ['add a new food, saved', () => {
+    tab('add');
+    $('new-food-btn').click();
+    ok(dialogOpen('food-dialog'), 'new food dialog opens');
+    ok($('food-save').checked, 'Save to my foods is checked by default');
+    type('food-name', 'Oats');
+    radio('food-unit', '100g');
+    type('food-kcal', '380');
+    type('food-protein', '13');
+    type('food-carbs', '60');
+    type('food-fat', '7');
+    type('food-qty', '50');
+    submit('food-form');
+    ok(!dialogOpen('food-dialog'), 'dialog closes after logging');
+    ok(visible('screen-today'), 'returns to Today');
+    totalIs('190');
+    eq(text('total-protein'), '6.5 g', 'protein total');
+    eq(rowTitles('entry-list').join('|'), 'Oats', 'entries');
+    ok(visible('toast'), 'confirmation toast shown');
+  }],
+
+  ['add a new food, not saved, no macros', () => {
+    tab('add');
+    $('new-food-btn').click();
+    type('food-name', 'Banana');
+    radio('food-unit', 'item');
+    type('food-kcal', '105');
+    type('food-qty', '1');
+    $('food-save').click();
+    ok(!$('food-save').checked, 'save unchecked');
+    submit('food-form');
+    totalIs('295');
+    ok(visible('macro-note'), 'partial macro note shown');
+    ok(text('macro-note').includes('Protein from 1 of 2 entries'), 'partial note text: ' + text('macro-note'));
+    tab('library');
+    eq(rowTitles('library-foods').join('|'), 'Oats', 'only the saved food is in the Library');
+  }],
+
+  ['quick add with no name', () => {
+    tab('add');
+    $('quick-add-btn').click();
+    type('quick-kcal', '100');
+    submit('quick-form');
+    totalIs('395');
+    eq(rowTitles('entry-list').join('|'), 'Oats|Banana|Quick add', 'entries');
+  }],
+
+  ['form errors say what to do', () => {
+    tab('add');
+    $('quick-add-btn').click();
+    submit('quick-form');
+    ok(dialogOpen('quick-dialog'), 'dialog stays open');
+    const err = $('quick-form').querySelector('.message.error');
+    ok(!err.hidden && err.textContent.includes('Enter the calories'), 'error shown: ' + err.textContent);
+    $('quick-form').querySelector('[data-close]').click();
+    totalIs('395');
+  }],
+
+  ['recents and search reuse a saved food', () => {
+    tab('add');
+    eq(rowTitles('food-results').join('|'), 'Oats', 'recents list saved foods only');
+    type('food-search', 'oat');
+    eq(rowTitles('food-results').join('|'), 'Oats', 'search finds it');
+    type('food-search', 'zzz');
+    eq(rows('food-results').length, 0, 'no matches');
+    ok(visible('food-empty'), 'no-match message with next steps');
+    type('food-search', '');
+    clickRow('food-results', 'Oats');
+    ok(dialogOpen('amount-dialog'), 'amount dialog opens');
+    eq($('amount-qty').value, '50', 'defaults to last amount');
+    submit('amount-form');
+    totalIs('585');
+  }],
+
+  ['edit an entry amount', () => {
+    clickRow('entry-list', 'Oats', 0);
+    ok(dialogOpen('entry-dialog'), 'entry dialog opens');
+    eq($('entry-qty').value, '50', 'shows current amount');
+    type('entry-qty', '100');
+    submit('entry-form');
+    totalIs('775');
+  }],
+
+  ['delete an entry, then undo', () => {
+    clickRow('entry-list', 'Quick add');
+    $('entry-delete').click();
+    totalIs('675');
+    ok(visible('toast-undo'), 'undo offered');
+    $('toast-undo').click();
+    totalIs('775');
+  }],
+
+  ['build a recipe from a saved food and an ad hoc ingredient, log by portions', () => {
+    tab('add');
+    $('new-recipe-btn').click();
+    ok(dialogOpen('recipe-dialog'), 'recipe dialog opens');
+    type('recipe-name', 'Porridge');
+    $('add-ingredient').click();
+    clickRow('ingredient-results', 'Oats');
+    type('ing-amount', '200');
+    submit('ingredient-form');
+    $('add-ingredient').click();
+    type('ing-name', 'Milk');
+    type('ing-kcal', '50');
+    type('ing-protein', '3.5');
+    type('ing-carbs', '4.8');
+    type('ing-fat', '1.8');
+    type('ing-amount', '500');
+    submit('ingredient-form');
+    eq(rowTitles('ingredient-list').join('|'), 'Oats|Milk', 'ingredients');
+    type('recipe-portions', '4');
+    type('recipe-weight', '800');
+    type('recipe-qty', '1.5');
+    ok(text('recipe-summary').includes('1010 kcal'), 'batch total shown: ' + text('recipe-summary'));
+    submit('recipe-form');
+    ok(!dialogOpen('recipe-dialog'), 'dialog closes');
+    totalIs('1154'); // 775 + 1010 / 4 * 1.5
+  }],
+
+  ['log a saved recipe by grams', () => {
+    tab('add');
+    clickRow('food-results', 'Porridge');
+    ok(visible('amount-unit-field'), 'portions/grams switch shown');
+    radio('amount-unit', 'g');
+    type('amount-qty', '200');
+    submit('amount-form');
+    totalIs('1406'); // + 1010 / 800 * 200
+  }],
+
+  ['edit a saved food and apply to linked entries only', () => {
+    tab('library');
+    clickRow('library-foods', 'Oats');
+    ok(dialogOpen('edit-food-dialog'), 'edit food dialog opens');
+    type('edit-food-kcal', '400');
+    submit('edit-food-form');
+    ok(dialogOpen('apply-dialog'), 'apply prompt shown');
+    eq(text('apply-all'), 'All 2 logged entries', 'counts linked entries only');
+    $('apply-all').click();
+    tab('today');
+    totalIs('1436'); // Oats entries +30; recipe ingredients are copies and unchanged
+  }],
+
+  ['history calendar shows the day and opens it', () => {
+    tab('history');
+    const cell = doc.querySelector('.cal-day[data-date="' + TODAY + '"]');
+    ok(cell, 'today is in the calendar');
+    eq(cell.querySelector('.cal-kcal').textContent, '1436', 'calendar kcal for today');
+    $('prev-month').click();
+    ok(!doc.querySelector('.cal-day[data-date="' + TODAY + '"]'), 'previous month shown');
+    $('month-title-btn').click();
+    doc.querySelector('.cal-day[data-date="' + TODAY + '"]').click();
+    ok(visible('screen-today'), 'tapping a day opens Today');
+    eq(text('day-title'), 'Today', 'day title');
+  }],
+
+  ['day navigation', () => {
+    $('prev-day').click();
+    eq(text('day-title'), 'Yesterday', 'previous day');
+    totalIs('0');
+    ok(visible('entry-empty'), 'empty-day message');
+    $('day-title-btn').click();
+    eq(text('day-title'), 'Today', 'back to today');
+    totalIs('1436');
+  }],
+
+  ['export a backup', async () => {
+    let blob = null;
+    win.URL.createObjectURL = (b) => { blob = b; return 'about:blank'; };
+    win.URL.revokeObjectURL = () => {};
+    // Stop the download itself; only the file contents matter.
+    doc.addEventListener('click', (e) => { if (e.target.matches('a[download]')) e.preventDefault(); }, true);
+    tab('settings');
+    $('export-btn').click();
+    await sleep(100);
+    ok(blob, 'a file was produced');
+    exportedText = await blob.text();
+    const data = JSON.parse(exportedText);
+    eq(data.app, 'simple-kcal', 'backup app id');
+    eq([data.foods.length, data.recipes.length, data.entries.length].join(','), '1,1,6', 'foods, recipes, entries');
+    eq(text('last-backup'), TODAY_UK, 'last backed up date');
+    ok(text('settings-message').startsWith('Backup exported'), 'export message');
+  }],
+
+  ['import into empty storage', async () => {
+    win.localStorage.clear();
+    await loadApp();
+    totalIs('0');
+    tab('settings');
+    let asked = '';
+    win.confirm = (msg) => { asked = msg; return true; };
+    const dt = new win.DataTransfer();
+    dt.items.add(new win.File([exportedText], 'backup.json', { type: 'application/json' }));
+    $('import-file').files = dt.files;
+    $('import-file').dispatchEvent(new win.Event('change', { bubbles: true }));
+    await sleep(100);
+    ok(asked.includes('1 food, 1 recipe and 6 log entries'), 'confirmation shows counts: ' + asked);
+    eq(text('settings-message'), 'Imported 1 food, 1 recipe and 6 log entries.', 'import message');
+    tab('today');
+    totalIs('1436');
+  }],
+
+  ['data survives a reload', async () => {
+    await loadApp();
+    totalIs('1436');
+    eq(rowTitles('entry-list').length, 6, 'entries');
+    tab('settings');
+    ok(/^\d+\.\d+\.\d+$/.test(text('app-version')), 'version shown: ' + text('app-version'));
+  }],
+];
+
+async function run() {
+  await loadApp();
+  for (const [name, fn] of steps) {
+    pageErrors = [];
+    try {
+      await fn();
+      if (pageErrors.length) throw new Error('Page error: ' + pageErrors.join('; '));
+      results.push({ name, ok: true });
+    } catch (e) {
+      results.push({ name, ok: false, error: e.message });
+      break; // later steps depend on this one
+    }
+  }
+  await fetch('/__result', { method: 'POST', body: JSON.stringify({ results, total: steps.length }) });
+}
+
+run().catch((e) => fetch('/__result', { method: 'POST', body: JSON.stringify({ results, total: steps.length, fatal: e.message }) }));
+</script>
+</body>
+</html>

@@ -551,6 +551,26 @@ test('backups are stamped simple-kcal, and old batch-kcal backups still import',
   }
 });
 
+// Every file the app is made of must be precached, or it breaks offline; and every precached file must exist.
+test('sw.js precaches exactly the app files', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const NOT_APP = new Set(['sw.js', 'test.js', 'package.json']);
+  const SKIP_DIRS = new Set(['.git', '.claude', 'tests', 'node_modules']);
+  const appFiles = [];
+  (function walk(dir) {
+    for (const d of fs.readdirSync(path.join(__dirname, dir), { withFileTypes: true })) {
+      const rel = dir ? dir + '/' + d.name : d.name;
+      if (d.isDirectory()) { if (!SKIP_DIRS.has(d.name)) walk(rel); continue; }
+      if (/\.(html|css|js|json|png)$/.test(d.name) && !NOT_APP.has(rel)) appFiles.push(rel);
+    }
+  })('');
+  const sw = fs.readFileSync(path.join(__dirname, 'sw.js'), 'utf8');
+  const listed = [...sw.match(/const FILES = \[([\s\S]*?)\]/)[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert.ok(listed.includes('./'), 'precaches ./');
+  assert.deepEqual(listed.filter((f) => f !== './').sort(), appFiles.sort());
+});
+
 test('app.js and sw.js declare the same version', () => {
   const fs = require('node:fs');
   const path = require('node:path');
