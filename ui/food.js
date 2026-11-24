@@ -1,8 +1,7 @@
 // Food dialogs: a new food from the Add screen, and editing a saved food from the Library.
 
 import Calc from '../calc/index.js';
-import { save, newId, app } from './store.js';
-import { render } from './nav.js';
+import { app, commit, newId } from './store.js';
 import { toast } from './messages.js';
 import { MACROS, valuesSummary, unitText } from './text.js';
 import { $, openDialog, readRequired, checkedUnit, readFoodFields, fillFoodFields } from './dom.js';
@@ -78,9 +77,8 @@ function submitEditFood(e) {
   const food = editingFood;
   const before = Object.assign({}, food);
   Object.assign(food, values);
-  if (!save()) return;
+  if (!commit()) return;
   $('edit-food-dialog').close();
-  render();
 
   if (!Calc.nutritionChanged(before, food)) {
     toast('Saved ' + food.name + '.');
@@ -97,13 +95,11 @@ function deleteFood() {
   const food = editingFood;
   const index = app.state.foods.indexOf(food);
   app.state.foods.splice(index, 1);
-  save();
+  commit();
   $('edit-food-dialog').close();
-  render();
   toast('Deleted ' + food.name + '. Logged entries are unchanged.', () => {
     app.state.foods.splice(Math.min(index, app.state.foods.length), 0, food);
-    save();
-    render();
+    commit();
   });
 }
 

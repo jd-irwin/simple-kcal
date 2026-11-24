@@ -64,6 +64,11 @@ export function weekdayDate(key) {
   return wd + ' ' + formatDate(key);
 }
 
+// True for the days dayTitle shows by name (today, yesterday, tomorrow) rather than by date.
+export function isNamedDay(key, todayKey) {
+  return key === todayKey || key === addDays(todayKey, -1) || key === addDays(todayKey, 1);
+}
+
 // 'Today', 'Yesterday', 'Tomorrow', or 'Thu 12/11/2026'
 export function dayTitle(key, todayKey) {
   if (key === todayKey) return 'Today';

@@ -1,8 +1,7 @@
 // Quick add, and editing a log entry.
 
 import Calc from '../calc/index.js';
-import { save, app } from './store.js';
-import { render } from './nav.js';
+import { app, commit } from './store.js';
 import { toast } from './messages.js';
 import { MACROS, valuesSummary, qtyLabel, entryName } from './text.js';
 import { $, formError, openDialog, readRequired, readMacros, numToField } from './dom.js';
@@ -122,9 +121,8 @@ function submitEntry(e) {
   updated.date = date;
   const i = app.state.entries.indexOf(editingEntry);
   app.state.entries[i] = updated;
-  save();
+  commit();
   $('entry-dialog').close();
-  render();
   toast(date === app.selectedDate ? 'Entry saved.' : 'Entry moved to ' + Calc.formatDate(date) + '.');
 }
 
@@ -140,13 +138,11 @@ function typedNutritionStrict(form) {
 function deleteEntry() {
   const entry = editingEntry;
   app.state.entries = app.state.entries.filter((x) => x !== entry);
-  save();
+  commit();
   $('entry-dialog').close();
-  render();
   toast('Deleted ' + entryName(entry) + '.', () => {
     app.state.entries.push(entry);
-    save();
-    render();
+    commit();
   });
 }
 

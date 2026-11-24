@@ -1,8 +1,8 @@
 // Settings screen: backup export and import, and the app version.
 
 import Calc from '../calc/index.js';
-import { save, app } from './store.js';
-import { render, registerScreen } from './nav.js';
+import { app, commit } from './store.js';
+import { registerScreen } from './nav.js';
 import { showMessage, clearMessage } from './messages.js';
 import { plural, countsText } from './text.js';
 import { $ } from './dom.js';
@@ -39,8 +39,7 @@ async function exportData() {
   if (!done) downloadFile(file);
 
   app.state.settings.lastBackup = now.toISOString();
-  save();
-  render();
+  commit();
   showMessage('Backup exported as ' + filename + '.');
 }
 
@@ -70,10 +69,7 @@ async function importFile(file) {
   app.state = result.data;
   app.readOnly = false;
   $('load-error').hidden = true;
-  if (save()) {
-    render();
-    showMessage('Imported ' + countsText(result.counts) + '.');
-  }
+  if (commit()) showMessage('Imported ' + countsText(result.counts) + '.');
 }
 
 function renderSettings() {

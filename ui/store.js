@@ -60,6 +60,22 @@ export function save() {
   }
 }
 
+const listeners = [];
+
+// fn runs after every committed change (nav uses it to redraw the screens).
+export function onChange(fn) {
+  listeners.push(fn);
+}
+
+// Saves app.state and tells listeners it changed. Returns false if it could not be saved;
+// save() has already told the user why. Listeners run either way, so the screens show the
+// data as it now is in memory.
+export function commit() {
+  const ok = save();
+  listeners.forEach((fn) => fn());
+  return ok;
+}
+
 // 8 random base-36 characters.
 export function newId() {
   const bytes = new Uint8Array(8);

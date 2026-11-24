@@ -7,7 +7,6 @@ import { $, openDialog, readRequired, checkedUnit, checkRadio, setGramsAllowed }
 import { addEntry, afterLog } from './log.js';
 
 let amountItem = null;
-
 let amountDefault = null;
 
 function recipePerText(recipe) {

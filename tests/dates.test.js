@@ -55,6 +55,21 @@ test('weekdayDate and dayTitle', () => {
   assert.equal(Calc.dayTitle('2026-03-29', '2026-03-30'), 'Yesterday'); // across BST start
 });
 
+test('isNamedDay is true for today, yesterday and tomorrow only, across BST changes', () => {
+  assert.equal(Calc.isNamedDay('2026-11-20', '2026-11-20'), true);
+  assert.equal(Calc.isNamedDay('2026-11-19', '2026-11-20'), true);
+  assert.equal(Calc.isNamedDay('2026-11-21', '2026-11-20'), true);
+  assert.equal(Calc.isNamedDay('2026-11-18', '2026-11-20'), false);
+  assert.equal(Calc.isNamedDay('2026-11-22', '2026-11-20'), false);
+  assert.equal(Calc.isNamedDay('2026-03-29', '2026-03-30'), true); // across BST start
+  assert.equal(Calc.isNamedDay('2026-10-26', '2026-10-25'), true); // across BST end
+  // Agrees with dayTitle for every day in a fortnight either side.
+  for (let n = -14; n <= 14; n++) {
+    const key = Calc.addDays('2026-11-20', n);
+    assert.equal(Calc.isNamedDay(key, '2026-11-20'), !/\d/.test(Calc.dayTitle(key, '2026-11-20')), key);
+  }
+});
+
 test('addMonths rolls over years both ways', () => {
   assert.deepEqual(Calc.addMonths(2026, 12, 1), { y: 2027, m: 1 });
   assert.deepEqual(Calc.addMonths(2027, 1, -1), { y: 2026, m: 12 });

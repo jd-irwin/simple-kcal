@@ -27,6 +27,7 @@ const FILES = [
   'ui/entry.js',
   'ui/food.js',
   'ui/history.js',
+  'ui/ingredient.js',
   'ui/library.js',
   'ui/log.js',
   'ui/messages.js',

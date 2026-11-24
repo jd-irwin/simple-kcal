@@ -5,7 +5,7 @@ import {
   scaleNullable,
 } from './values.js';
 import {
-  dateKey, addDays, formatDate, weekdayDate, dayTitle, addMonths, formatMonth, monthGrid,
+  dateKey, addDays, formatDate, weekdayDate, isNamedDay, dayTitle, addMonths, formatMonth, monthGrid,
 } from './dates.js';
 import {
   isRecipe, ingredientFromFood, ingredientValues, recipeTotals, recipeCanLogGrams, recipePerGram, recipePerPortion, recipePortionWeight, recipeUnitValues, recipeServing, recipeChanged,
@@ -27,7 +27,7 @@ import {
 } from './data.js';
 
 const Calc = {
-  dateKey, addDays, formatDate, weekdayDate, dayTitle,
+  dateKey, addDays, formatDate, weekdayDate, isNamedDay, dayTitle,
   addMonths, formatMonth, monthGrid, dailyKcal,
   fmtQty, formatAmount, formatEntryAmount, parseNumber,
   entriesForDate, searchRecent, searchByName, defaultQty, macroStatus,

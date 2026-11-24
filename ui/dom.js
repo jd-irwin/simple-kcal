@@ -91,7 +91,7 @@ export function fillFoodFields(prefix, radioName, f) {
   MACROS.forEach((k) => { $(prefix + '-' + k).value = numToField(f[k]); });
 }
 
-function makeRow(title, sub, extra, onClick) {
+export function makeRow(title, sub, extra, onClick) {
   const li = el('li');
   const btn = el('button', 'row');
   btn.type = 'button';

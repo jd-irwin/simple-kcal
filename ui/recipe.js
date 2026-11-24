@@ -1,24 +1,18 @@
-// Recipe builder (new from Add, edit from Library) and its ingredient sheet.
+// Recipe builder: a new recipe from Add (log it, and optionally save it), or a saved one edited from the Library.
 
 import Calc from '../calc/index.js';
-import { save, newId, app } from './store.js';
-import { render } from './nav.js';
+import { app, commit, newId } from './store.js';
 import { toast } from './messages.js';
-import { RECENTS_LIMIT, MACROS, macroLine, valuesSummary, unitText } from './text.js';
-import { $, el, formError, openDialog, readRequired, numToField, checkedUnit, checkRadio, setGramsAllowed, readFoodFields, fillFoodFields, foodRow } from './dom.js';
+import { macroLine, valuesSummary } from './text.js';
+import { $, el, formError, openDialog, readRequired, numToField, checkedUnit, checkRadio, setGramsAllowed, makeRow } from './dom.js';
 import { addEntry, afterLog } from './log.js';
 import { openApply } from './apply.js';
+import { openIngredient } from './ingredient.js';
 
 let recipeMode = 'new';
-
 let editingRecipe = null;
-
 // Ingredients being edited. Copies, so Cancel leaves a saved recipe untouched.
 let draftIngredients = [];
-
-function blankFood() {
-  return { name: '', unit: '100g', kcal: null, protein: null, carbs: null, fat: null };
-}
 
 // Positive number or null, for the live summary while typing.
 function softNumber(input) {
@@ -82,16 +76,9 @@ function renderRecipe() {
   const list = $('ingredient-list');
   list.replaceChildren();
   draftIngredients.forEach((ing, i) => {
-    const li = el('li');
-    const btn = el('button', 'row');
-    btn.type = 'button';
-    const main = el('span', 'row-main');
-    main.append(el('span', 'row-title', ing.name));
-    main.append(el('span', 'row-sub', ingredientAmountText(ing) + ' · ' + macroLine(Calc.ingredientValues(ing))));
-    btn.append(main, el('span', 'row-kcal', Calc.fmtKcal(Calc.ingredientValues(ing).kcal) + ' kcal'));
-    btn.addEventListener('click', () => openIngredient(i));
-    li.append(btn);
-    list.append(li);
+    const values = Calc.ingredientValues(ing);
+    list.append(makeRow(ing.name, ingredientAmountText(ing) + ' · ' + macroLine(values),
+      Calc.fmtKcal(values.kcal) + ' kcal', () => openIngredient(draftIngredients, i, renderRecipe)));
   });
   $('ingredient-empty').hidden = draftIngredients.length > 0;
 
@@ -171,13 +158,11 @@ function saveOnlyRecipe() {
   if (!values) return;
   const recipe = Object.assign({ id: newId() }, values, { lastUsed: Date.now() });
   app.state.recipes.push(recipe);
-  if (!save()) return;
+  if (!commit()) return;
   $('recipe-dialog').close();
-  render();
   toast('Saved ' + recipe.name + ' to your recipes. Nothing logged.', () => {
     app.state.recipes = app.state.recipes.filter((r) => r !== recipe);
-    save();
-    render();
+    commit();
   });
 }
 
@@ -187,9 +172,8 @@ function saveEditedRecipe() {
   const recipe = editingRecipe;
   const before = Object.assign({}, recipe);
   Object.assign(recipe, values);
-  if (!save()) return;
+  if (!commit()) return;
   $('recipe-dialog').close();
-  render();
   const counts = Calc.linkedEntryCounts(app.state.entries, recipe, app.todayKey);
   if (!Calc.recipeChanged(before, recipe) || counts.all === 0) toast('Saved ' + recipe.name + '.');
   else openApply(recipe, counts);
@@ -199,95 +183,12 @@ function deleteRecipe() {
   const recipe = editingRecipe;
   const index = app.state.recipes.indexOf(recipe);
   app.state.recipes.splice(index, 1);
-  save();
+  commit();
   $('recipe-dialog').close();
-  render();
   toast('Deleted ' + recipe.name + '. Logged entries are unchanged.', () => {
     app.state.recipes.splice(Math.min(index, app.state.recipes.length), 0, recipe);
-    save();
-    render();
+    commit();
   });
-}
-
-let ingredientIndex = -1; // -1 while adding a new ingredient
-
-function openIngredient(index) {
-  ingredientIndex = index;
-  const ing = index >= 0 ? draftIngredients[index] : null;
-  $('ingredient-title').textContent = ing ? 'Edit ingredient' : 'Add ingredient';
-  $('ingredient-pick').hidden = !!ing || app.state.foods.length === 0;
-  $('ingredient-search').value = '';
-  $('ingredient-copied').hidden = true;
-  fillFoodFields('ing', 'ing-unit', ing || blankFood());
-  $('ing-amount').value = ing ? Calc.fmtQty(ing.amount) : '';
-  $('ingredient-remove').hidden = !ing;
-  $('ingredient-submit').textContent = ing ? 'Save' : 'Add';
-  updateIngredientLabels();
-  renderIngredientPicker();
-  const form = $('ingredient-form');
-  openDialog($('ingredient-dialog'), ing ? $('ing-amount') : (app.state.foods.length ? form.querySelector('[data-close]') : $('ing-name')));
-}
-
-function renderIngredientPicker() {
-  const query = $('ingredient-search').value.trim();
-  const foods = Calc.searchRecent(app.state.foods, query).slice(0, RECENTS_LIMIT);
-  const list = $('ingredient-results');
-  list.replaceChildren();
-  foods.forEach((food) => list.append(foodRow(food, () => pickIngredientFood(food), Calc.fmtKcal(food.kcal) + ' kcal')));
-  const empty = $('ingredient-results-empty');
-  empty.textContent = 'No saved foods match “' + query + '”. Type the ingredient in below.';
-  empty.hidden = foods.length > 0;
-}
-
-// Copies a saved food's values into the form. The ingredient is a copy, not a link.
-function pickIngredientFood(food) {
-  fillFoodFields('ing', 'ing-unit', food);
-  $('ing-amount').value = food.unit === 'item' ? '1' : '';
-  $('ingredient-pick').hidden = true;
-  $('ingredient-copied').textContent = 'Copied from your saved food ' + food.name +
-    '. Changes here affect this recipe only.';
-  $('ingredient-copied').hidden = false;
-  updateIngredientLabels();
-  $('ing-amount').focus();
-}
-
-function updateIngredientLabels() {
-  const unit = checkedUnit('ing-unit');
-  $('ing-kcal-label').textContent = 'Calories ' + unitText(unit) + ' (kcal)';
-  $('ing-amount-label').textContent = unit === 'item' ? 'Number of items used' : 'Weight used (g)';
-  updateIngredientPreview();
-}
-
-function updateIngredientPreview() {
-  const kcal = Calc.parseNumber($('ing-kcal').value);
-  const amount = Calc.parseNumber($('ing-amount').value);
-  if (!(kcal >= 0) || !(amount > 0)) { $('ing-preview').textContent = ''; return; }
-  const vals = { name: '', unit: checkedUnit('ing-unit'), kcal: kcal };
-  MACROS.forEach((k) => {
-    const n = Calc.parseNumber($('ing-' + k).value);
-    vals[k] = Number.isNaN(n) ? null : n;
-  });
-  $('ing-preview').textContent = 'Adds ' + valuesSummary(Calc.ingredientValues(Calc.ingredientFromFood(vals, amount)));
-}
-
-function submitIngredient(e) {
-  e.preventDefault();
-  const form = $('ingredient-form');
-  const values = readFoodFields(form, 'ing', 'ing-unit', 'ingredient');
-  if (!values) return;
-  const amount = readRequired(form, $('ing-amount'), values.unit === 'item' ? 'number of items used' : 'weight used', false);
-  if (amount === undefined) return;
-  const ing = Calc.ingredientFromFood(values, amount);
-  if (ingredientIndex >= 0) draftIngredients[ingredientIndex] = ing;
-  else draftIngredients.push(ing);
-  $('ingredient-dialog').close();
-  renderRecipe();
-}
-
-function removeIngredient() {
-  draftIngredients.splice(ingredientIndex, 1);
-  $('ingredient-dialog').close();
-  renderRecipe();
 }
 
 export function init() {
@@ -296,12 +197,5 @@ export function init() {
   document.querySelectorAll('input[name="recipe-unit"]').forEach((r) => r.addEventListener('change', changeRecipeUnit));
   $('recipe-save-only').addEventListener('click', saveOnlyRecipe);
   $('recipe-delete').addEventListener('click', deleteRecipe);
-  $('add-ingredient').addEventListener('click', () => openIngredient(-1));
-  $('ingredient-form').addEventListener('submit', submitIngredient);
-  $('ingredient-form').addEventListener('input', updateIngredientPreview);
-  document.querySelectorAll('input[name="ing-unit"]').forEach((r) => r.addEventListener('change', updateIngredientLabels));
-  $('ingredient-search').addEventListener('input', renderIngredientPicker);
-  // Enter in a search box should not submit the ingredient form.
-  $('ingredient-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
-  $('ingredient-remove').addEventListener('click', removeIngredient);
+  $('add-ingredient').addEventListener('click', () => openIngredient(draftIngredients, -1, renderRecipe));
 }

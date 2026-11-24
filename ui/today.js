@@ -4,13 +4,13 @@ import Calc from '../calc/index.js';
 import { app } from './store.js';
 import { showScreen, setDate, registerScreen } from './nav.js';
 import { MACROS, MACRO_NAMES, macroLine, entryName } from './text.js';
-import { $, el } from './dom.js';
+import { $, makeRow } from './dom.js';
 import { openEntry } from './entry.js';
 
 function renderToday() {
   $('day-title').textContent = Calc.dayTitle(app.selectedDate, app.todayKey);
-  const isNamedDay = ['Today', 'Yesterday', 'Tomorrow'].includes(Calc.dayTitle(app.selectedDate, app.todayKey));
-  $('day-subtitle').textContent = isNamedDay ? Calc.weekdayDate(app.selectedDate) : '';
+  // A named day (Today, Yesterday, Tomorrow) also shows its date underneath.
+  $('day-subtitle').textContent = Calc.isNamedDay(app.selectedDate, app.todayKey) ? Calc.weekdayDate(app.selectedDate) : '';
 
   const entries = Calc.entriesForDate(app.state.entries, app.selectedDate);
   const totals = Calc.sumEntries(entries);
@@ -31,17 +31,8 @@ function renderToday() {
   list.replaceChildren();
   entries.forEach((entry) => {
     const totals = Calc.entryTotals(entry);
-    const li = el('li');
-    const btn = el('button', 'row');
-    btn.type = 'button';
-    const main = el('span', 'row-main');
-    main.append(el('span', 'row-title', entryName(entry)));
     const sub = [Calc.formatEntryAmount(entry), macroLine(totals)].filter(Boolean).join(' · ');
-    main.append(el('span', 'row-sub', sub));
-    btn.append(main, el('span', 'row-kcal', Calc.fmtKcal(totals.kcal) + ' kcal'));
-    btn.addEventListener('click', () => openEntry(entry));
-    li.append(btn);
-    list.append(li);
+    list.append(makeRow(entryName(entry), sub, Calc.fmtKcal(totals.kcal) + ' kcal', () => openEntry(entry)));
   });
   $('entry-empty').hidden = entries.length > 0;
 }

@@ -22,7 +22,6 @@ export function clearMessage() {
 }
 
 let toastTimer = null;
-
 let toastUndo = null;
 
 export function toast(text, undo) {

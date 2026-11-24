@@ -1,14 +1,12 @@
 // After editing a saved food or recipe: apply the new values to logged entries?
 
 import Calc from '../calc/index.js';
-import { save, app } from './store.js';
-import { render } from './nav.js';
+import { app, commit } from './store.js';
 import { toast } from './messages.js';
 import { unitText, plural } from './text.js';
 import { $ } from './dom.js';
 
 let applyItem = null;
-
 let applyCounts = null;
 
 // item is a saved food or recipe that has just been edited.
@@ -36,12 +34,10 @@ function applyChoice(scope) {
   const n = scope === 'today' ? applyCounts.today : applyCounts.all;
   const previous = app.state.entries;
   app.state.entries = Calc.applyToEntries(previous, item, scope, app.todayKey);
-  save();
-  render();
+  commit();
   toast('Saved ' + item.name + ' and updated ' + plural(n, 'entry', 'entries') + '.', () => {
     app.state.entries = previous;
-    save();
-    render();
+    commit();
   });
 }
 

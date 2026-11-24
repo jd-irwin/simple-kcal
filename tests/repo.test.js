@@ -33,3 +33,18 @@ test('version.js and sw.js declare the same version', () => {
   assert.ok(appVersion && swVersion, 'version constants not found');
   assert.equal(appVersion[1], swVersion[1]);
 });
+
+// Loading each module makes Node check that every import names something the other module
+// exports. In the browser a mistake there stops the whole app from starting. The modules only
+// declare functions at load time, so they load without a page.
+const loadErrors = [];
+for (const f of fs.readdirSync(path.join(ROOT, 'ui')).sort()) {
+  try {
+    await import('../ui/' + f);
+  } catch (e) {
+    loadErrors.push('ui/' + f + ': ' + e.message);
+  }
+}
+test('every ui module loads and its imports resolve', () => {
+  assert.deepEqual(loadErrors, []);
+});

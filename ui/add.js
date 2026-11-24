@@ -12,7 +12,7 @@ import { openNewRecipe } from './recipe.js';
 
 function renderAdd() {
   const title = Calc.dayTitle(app.selectedDate, app.todayKey);
-  const named = ['Today', 'Yesterday', 'Tomorrow'].includes(title);
+  const named = Calc.isNamedDay(app.selectedDate, app.todayKey);
   $('add-date-note').textContent = 'Adding to ' + (named ? title.toLowerCase() : title) + '.';
   const query = $('food-search').value.trim();
   let items = Calc.searchRecent(app.state.foods.concat(app.state.recipes), query);

@@ -2,7 +2,7 @@
 // Screens register their render function here, so nothing else needs to import every screen.
 
 import Calc from '../calc/index.js';
-import { app } from './store.js';
+import { app, onChange } from './store.js';
 import { $ } from './dom.js';
 
 const BANNER_SCREENS = ['today', 'settings'];
@@ -63,6 +63,7 @@ function checkDayChange() {
 }
 
 export function init() {
+  onChange(render);
   document.querySelector('.tabbar').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-tab]');
     if (btn) showScreen(btn.dataset.tab);
