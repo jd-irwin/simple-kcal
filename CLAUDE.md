@@ -32,6 +32,7 @@ Primary: calorie and macro tracking.
 12. Optional daily calorie target, set in Settings (blank means none, and the app looks as it did without one). Today shows a progress bar under the total: "Target 2000 kcal · 550 left", or full and amber with "150 over". Left and over are worked out from the rounded total, so the shown numbers add up.
 13. History shows daily averages for the month on screen and for the last 7 days (the 7 days before today): average kcal per logged day and the number of logged days. Only days with at least one entry count (a day logged at 0 kcal counts), and today never counts because it is not finished. With a target set, each shows "N under target" or "N over target" (amber), from the rounded average.
 14. Saved pans (name and empty weight), managed in Settings. In the recipe builder, "Weighed in" offers None plus each pan (shown only when pans exist). With a pan chosen, the weight field takes the scale reading and the app shows "Cooked weight N g after the P g pan"; a reading not more than the pan is an error. The recipe stores the weight without the pan, and remembers the pan as `panId` for next time.
+15. Cook again: from a saved recipe's edit sheet, start a new batch with the same name, ingredients (copies) and portions, the weight blank and the remembered pan chosen. Saving the batch (Log with "Save to my recipes" ticked, or Save only) replaces the old recipe in the Library with a new recipe and a new id, so the Library holds one of each. Entries from earlier batches keep their values and stay linked to the old id, so they are never offered updates from the new batch. Undo after Save only restores the old recipe; undo after Log removes the entry only. Unticking "Save to my recipes" logs without replacing anything.
 
 Secondary: easy recipe creation (see Recipes).
 
@@ -118,7 +119,7 @@ Releasing: bump `APP_VERSION` in `version.js` and `VERSION` in `sw.js` together.
 Screens, bottom tab bar:
 1. **Today (home).** Date selector (previous/next day), total kcal, macro breakdown, progress bar when a target is set, list of entries with edit and delete. "Copy from another day" button. Prominent Add button.
 2. **Add.** One screen with: search box over saved foods and recipes only; recents at the top; "New food" form (Save to my foods checkbox, checked by default); "Quick add" form; "New recipe" entry point. Choosing a food asks for an amount, then logs it.
-3. **Library.** Foods and recipes, searchable, with edit and delete (confirm or offer undo). Saving an edit to a food or recipe shows the "apply to entries" prompt described under Editing behaviour.
+3. **Library.** Foods and recipes, searchable, with edit and delete (confirm or offer undo). A recipe's edit sheet also offers "Cook again (new batch)". Saving an edit to a food or recipe shows the "apply to entries" prompt described under Editing behaviour.
 4. **History.** Calendar of kcal per day (tap a day to open it on Today), with daily averages below.
 5. **Settings.** Daily target, pans, export, import, last backup, app version.
 

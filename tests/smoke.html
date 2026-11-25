@@ -488,6 +488,57 @@ const steps = [
     tab('today');
     totalIs('1536');
   }],
+
+  ['cook a saved recipe again: the new batch replaces the old', () => {
+    tab('library');
+    clickRow('library-recipes', 'Stew');
+    ok(visible('recipe-cook-again'), 'Cook again offered when editing');
+    $('recipe-cook-again').click();
+    ok(dialogOpen('recipe-dialog'), 'builder open');
+    eq(text('recipe-title'), 'Cook again', 'title');
+    ok(text('recipe-note').includes('replaces the recipe in your Library'), 'says what saving does');
+    ok(!visible('recipe-cook-again') && !visible('recipe-delete'), 'edit-only buttons hidden');
+    eq($('recipe-name').value, 'Stew', 'same name');
+    eq(rowTitles('ingredient-list').join('|'), 'Stew mix', 'same ingredients');
+    eq($('recipe-portions').value, '4', 'same portions');
+    eq($('recipe-weight').value, '', 'weight blank for the new batch');
+    ok($('recipe-pan-field').querySelector('input:checked').closest('label').textContent.includes('Big pot'), 'remembered pan chosen');
+    eq(text('recipe-weight-label'), 'Scale reading (g)', 'ready for the scale reading');
+    ok(visible('recipe-log-section'), 'can log a portion');
+    type('recipe-weight', '2050');
+    eq(text('recipe-weight-note'), 'Cooked weight 600 g after the 1450 g pan.', 'pan taken off');
+    submit('recipe-form');
+    ok(!dialogOpen('recipe-dialog'), 'logged');
+    totalIs('1736'); // + 800 kcal / 4 portions; the earlier Stew entry keeps its 100 kcal
+    tab('library');
+    eq(rowTitles('library-recipes').join('|'), 'Porridge|Stew', 'one Stew, not two');
+    clickRow('library-recipes', 'Stew');
+    eq($('recipe-weight').value, '600', 'Library has the new batch');
+    type('recipe-portions', '5');
+    submit('recipe-form');
+    ok(dialogOpen('apply-dialog'), 'asks about logged entries');
+    eq(text('apply-all'), 'The 1 logged entry', 'only the new batch\'s entry is linked');
+    $('apply-none').click();
+    tab('today');
+    totalIs('1736');
+  }],
+
+  ['cook again with Save only; undo restores the old recipe', () => {
+    tab('library');
+    clickRow('library-recipes', 'Porridge');
+    $('recipe-cook-again').click();
+    eq($('recipe-pan-field').querySelector('input:checked').value, '', 'no remembered pan: None');
+    type('recipe-weight', '900');
+    $('recipe-save-only').click();
+    ok(!dialogOpen('recipe-dialog'), 'saved');
+    eq(rowTitles('library-recipes').join('|'), 'Porridge|Stew', 'replaced, not added');
+    ok(text('toast-text').includes('new batch of Porridge'), 'toast: ' + text('toast-text'));
+    $('toast-undo').click();
+    eq(rowTitles('library-recipes').join('|'), 'Porridge|Stew', 'still one Porridge');
+    clickRow('library-recipes', 'Porridge');
+    eq($('recipe-weight').value, '800', 'undo brings back the old batch');
+    $('recipe-form').querySelector('[data-close]').click();
+  }],
 ];
 
 async function run() {

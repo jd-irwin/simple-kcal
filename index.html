@@ -298,7 +298,7 @@
   <dialog id="recipe-dialog" class="sheet">
     <form id="recipe-form" novalidate>
       <h2 id="recipe-title">New recipe</h2>
-      <p id="recipe-note" class="note small" hidden>This changes the recipe in your Library. Entries already logged keep their values unless you choose to update them.</p>
+      <p id="recipe-note" class="note small" hidden></p>
       <label class="field">
         <span>Name</span>
         <input type="text" id="recipe-name" autocomplete="off" autocapitalize="sentences" enterkeyhint="done">
@@ -337,6 +337,7 @@
         </label>
       </div>
 
+      <button type="button" id="recipe-cook-again" class="btn btn-wide" hidden>Cook again (new batch)</button>
       <p class="message error" hidden></p>
       <div class="button-row">
         <button type="button" id="recipe-delete" class="btn btn-danger" hidden>Delete</button>

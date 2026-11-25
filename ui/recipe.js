@@ -1,4 +1,5 @@
-// Recipe builder: a new recipe from Add (log it, and optionally save it), or a saved one edited from the Library.
+// Recipe builder, in three modes: 'new' from Add (log it, and optionally save it), 'edit' for a
+// saved recipe from the Library, and 'again' to cook a saved recipe again as a new batch.
 
 import Calc from '../calc/index.js';
 import { app, commit, newId } from './store.js';
@@ -11,6 +12,10 @@ import { openIngredient } from './ingredient.js';
 
 let recipeMode = 'new';
 let editingRecipe = null;
+// In 'again' mode, the saved recipe the new batch replaces when it is saved.
+let replacing = null;
+
+const EDIT_NOTE = 'This changes the recipe in your Library. Entries already logged keep their values unless you choose to update them.';
 // Ingredients being edited. Copies, so Cancel leaves a saved recipe untouched.
 let draftIngredients = [];
 
@@ -82,6 +87,7 @@ function ingredientAmountText(ing) {
 export function openNewRecipe(prefillName) {
   recipeMode = 'new';
   editingRecipe = null;
+  replacing = null;
   draftIngredients = [];
   $('recipe-name').value = prefillName || '';
   $('recipe-portions').value = '';
@@ -98,6 +104,7 @@ export function openNewRecipe(prefillName) {
 export function openEditRecipe(recipe) {
   recipeMode = 'edit';
   editingRecipe = recipe;
+  replacing = null;
   draftIngredients = recipe.ingredients.map((ing) => Object.assign({}, ing));
   $('recipe-name').value = recipe.name;
   $('recipe-portions').value = numToField(recipe.portions);
@@ -109,10 +116,37 @@ export function openEditRecipe(recipe) {
   openDialog($('recipe-dialog'), $('recipe-form').querySelector('[data-close]'));
 }
 
+// Cook again: a new batch starting from the saved recipe being edited. Opens with the weight
+// blank and the recipe's pan chosen, ready for the scale reading.
+function openCookAgain() {
+  const old = editingRecipe;
+  const draft = Calc.cookAgainDraft(old);
+  $('recipe-dialog').close();
+  recipeMode = 'again';
+  editingRecipe = null;
+  replacing = old;
+  draftIngredients = draft.ingredients;
+  $('recipe-name').value = draft.name;
+  $('recipe-portions').value = numToField(draft.portions);
+  $('recipe-weight').value = '';
+  $('recipe-save').checked = true;
+  checkRadio('recipe-unit', 'portion');
+  $('recipe-qty').value = '1';
+  renderPanChoice(draft.panId);
+  setRecipeMode();
+  renderRecipe();
+  openDialog($('recipe-dialog'), $('recipe-weight'));
+}
+
 function setRecipeMode() {
   const edit = recipeMode === 'edit';
-  $('recipe-title').textContent = edit ? 'Edit saved recipe' : 'New recipe';
-  $('recipe-note').hidden = !edit;
+  const again = recipeMode === 'again';
+  $('recipe-title').textContent = edit ? 'Edit saved recipe' : again ? 'Cook again' : 'New recipe';
+  $('recipe-note').textContent = again
+    ? 'A new batch of ' + replacing.name + '. Saving it replaces the recipe in your Library; entries from earlier batches keep their values.'
+    : EDIT_NOTE;
+  $('recipe-note').hidden = !edit && !again;
+  $('recipe-cook-again').hidden = !edit;
   $('recipe-log-section').hidden = edit;
   $('recipe-delete').hidden = !edit;
   $('recipe-submit').textContent = edit ? 'Save' : 'Log';
@@ -143,7 +177,7 @@ function renderRecipe() {
     line('1 portion', '≈ ' + Calc.fmtKcal(Calc.recipePortionWeight(recipe)) + ' g');
   }
 
-  if (recipeMode === 'new') {
+  if (recipeMode !== 'edit') {
     setGramsAllowed('recipe-unit', Calc.recipeCanLogGrams(recipe));
     const unit = checkedUnit('recipe-unit');
     $('recipe-qty-label').textContent = unit === 'g' ? 'Amount eaten (g)' : 'Number of portions';
@@ -209,7 +243,8 @@ function logNewRecipe() {
   let recipe = null;
   if ($('recipe-save').checked) {
     recipe = Object.assign({ id: newId() }, values, { lastUsed: Date.now() });
-    app.state.recipes.push(recipe);
+    // When cooking again, the new batch takes the old recipe's place.
+    app.state.recipes = Calc.replaceRecipe(app.state.recipes, replacing, recipe);
   }
   const entry = addEntry(Calc.entryFromRecipe(values, qty, unit, recipe ? recipe.id : null));
   $('recipe-dialog').close();
@@ -221,11 +256,14 @@ function saveOnlyRecipe() {
   const values = readRecipe();
   if (!values) return;
   const recipe = Object.assign({ id: newId() }, values, { lastUsed: Date.now() });
-  app.state.recipes.push(recipe);
+  const previous = app.state.recipes;
+  app.state.recipes = Calc.replaceRecipe(previous, replacing, recipe);
   if (!commit()) return;
   $('recipe-dialog').close();
-  toast('Saved ' + recipe.name + ' to your recipes. Nothing logged.', () => {
-    app.state.recipes = app.state.recipes.filter((r) => r !== recipe);
+  const what = replacing ? 'the new batch of ' + recipe.name : recipe.name + ' to your recipes';
+  // Undo puts the list back as it was, including the recipe a new batch replaced.
+  toast('Saved ' + what + '. Nothing logged.', () => {
+    app.state.recipes = previous;
     commit();
   });
 }
@@ -261,6 +299,7 @@ export function init() {
   document.querySelectorAll('input[name="recipe-unit"]').forEach((r) => r.addEventListener('change', changeRecipeUnit));
   $('recipe-save-only').addEventListener('click', saveOnlyRecipe);
   $('recipe-delete').addEventListener('click', deleteRecipe);
+  $('recipe-cook-again').addEventListener('click', openCookAgain);
   $('recipe-pan-field').addEventListener('change', () => {
     renderRecipe();
     $('recipe-weight').focus();

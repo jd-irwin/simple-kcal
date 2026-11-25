@@ -8,7 +8,7 @@ import {
   dateKey, addDays, formatDate, weekdayDate, isNamedDay, dayTitle, addMonths, formatMonth, monthGrid, monthRange,
 } from './dates.js';
 import {
-  isRecipe, ingredientFromFood, ingredientValues, recipeTotals, netWeight, recipeCanLogGrams, recipePerGram, recipePerPortion, recipePortionWeight, recipeUnitValues, recipeServing, recipeChanged,
+  isRecipe, ingredientFromFood, ingredientValues, recipeTotals, netWeight, recipeCanLogGrams, recipePerGram, recipePerPortion, recipePortionWeight, recipeUnitValues, recipeServing, recipeChanged, cookAgainDraft, replaceRecipe,
 } from './recipes.js';
 import {
   defaultQty, foodEntryUnit, entryTotals, entryFromFood, entryFromQuick, copyEntries, setEntryQuantity, setEntryNutrition, nutritionChanged, linkedEntryCounts, applyToEntries, entryFromRecipe, defaultRecipeAmount,
@@ -37,7 +37,7 @@ const Calc = {
   sumEntries, targetProgress, averageKcal,
   ingredientFromFood, ingredientValues, recipeTotals, netWeight, recipeCanLogGrams, recipePerGram,
   recipePerPortion, recipePortionWeight, recipeUnitValues, recipeServing, entryFromRecipe,
-  recipeChanged, defaultRecipeAmount,
+  recipeChanged, defaultRecipeAmount, cookAgainDraft, replaceRecipe,
   fmtKcal, fmtMacro,
   SCHEMA_VERSION, emptyData, migrate, countData, buildExport, parseImport, isBackupStale, isValidTarget,
 };

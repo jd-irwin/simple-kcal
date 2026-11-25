@@ -170,3 +170,33 @@ test('netWeight takes the pan off the scale reading, and refuses a reading not o
   assert.equal(Calc.netWeight(null, 1450), null);
   assert.equal(Calc.netWeight(2000, null), null);
 });
+
+test('cookAgainDraft copies the recipe for a new batch: no weight, same pan, independent ingredients', () => {
+  const old = Object.assign({ id: 'r1', name: 'Porridge', panId: 'p1', lastUsed: 5 }, porridge);
+  const before = JSON.stringify(old);
+  const draft = Calc.cookAgainDraft(old);
+  assert.equal(draft.name, 'Porridge');
+  assert.equal(draft.portions, 4);
+  assert.equal(draft.cookedWeight, null);
+  assert.equal(draft.panId, 'p1');
+  assert.deepEqual(draft.ingredients, old.ingredients);
+  assert.equal('id' in draft, false, 'the new batch gets its own id when saved');
+  draft.ingredients[0].amount = 999;
+  draft.ingredients.push({ name: 'Honey', unit: '100g', amount: 20, kcal: 304, protein: 0.3, carbs: 82, fat: 0 });
+  assert.equal(JSON.stringify(old), before, 'changing the new batch never touches the old recipe');
+  assert.equal(Calc.cookAgainDraft(Object.assign({}, porridge, { name: 'X' })).panId, null, 'no pan remembered');
+});
+
+test('replaceRecipe swaps the old recipe for the new batch without changing the input', () => {
+  const a = { id: 'a', name: 'Chilli' };
+  const b = { id: 'b', name: 'Soup' };
+  const next = { id: 'c', name: 'Chilli' };
+  const list = [a, b];
+  const out = Calc.replaceRecipe(list, a, next);
+  assert.deepEqual(out.map((r) => r.id), ['b', 'c']);
+  assert.deepEqual(list.map((r) => r.id), ['a', 'b'], 'input unchanged, so undo can restore it');
+  assert.deepEqual(Calc.replaceRecipe(list, null, next).map((r) => r.id), ['a', 'b', 'c'], 'no old recipe: just added');
+  // Entries from the old batch stay linked to the old id, so the new batch has none linked.
+  const oldEntry = Object.assign({ id: 'e', date: '2026-11-25', created: 1 }, Calc.entryFromRecipe(Object.assign({ name: 'Chilli' }, porridge), 1, 'portion', 'a'));
+  assert.deepEqual(Calc.linkedEntryCounts([oldEntry], Object.assign({ id: 'c' }, porridge), '2026-11-25'), { today: 0, all: 0 });
+});

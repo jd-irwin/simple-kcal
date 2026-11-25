@@ -88,6 +88,25 @@ export function recipeServing(recipe, amount) {
   throw new Error('recipeServing needs { portions } or { grams }');
 }
 
+// The starting point for cooking a saved recipe again: the same name, ingredients (copies, so
+// the new batch can change freely without touching the old recipe) and portions, no cooked
+// weight yet because every batch weighs differently, and the same pan.
+export function cookAgainDraft(recipe) {
+  return {
+    name: recipe.name,
+    ingredients: recipe.ingredients.map((ing) => Object.assign({}, ing)),
+    portions: recipe.portions,
+    cookedWeight: null,
+    panId: recipe.panId || null,
+  };
+}
+
+// The recipe list with `old` (if given) taken out and `next` added. Returns a new array and
+// leaves the input alone, so the previous list can be put back for undo.
+export function replaceRecipe(recipes, old, next) {
+  return recipes.filter((r) => !old || r.id !== old.id).concat([next]);
+}
+
 // True if a recipe's per-portion or per-100 g values differ. A rename alone is not a change.
 export function recipeChanged(a, b) {
   return !sameValues(recipeUnitValues(a, 'portion'), recipeUnitValues(b, 'portion')) ||
