@@ -66,7 +66,14 @@ export function init() {
   onChange(render);
   document.querySelector('.tabbar').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-tab]');
-    if (btn) showScreen(btn.dataset.tab);
+    if (!btn) return;
+    // The Today tab always opens today, whichever day was being looked at. (Opening a day from
+    // History, or logging to a past day, goes to the Today screen without resetting the date.)
+    if (btn.dataset.tab === 'today') {
+      checkDayChange();
+      setDate(app.todayKey);
+    }
+    showScreen(btn.dataset.tab);
   });
   $('backup-banner').addEventListener('click', () => showScreen('settings'));
   document.addEventListener('visibilitychange', () => {

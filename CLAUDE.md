@@ -121,7 +121,7 @@ The JavaScript is ES modules (`<script type="module">`), so the app must be serv
 Releasing: bump `APP_VERSION` in `version.js` and `VERSION` in `sw.js` together. Every app file must be listed in `FILES` in `sw.js`. `node test.js` checks both.
 
 Screens, bottom tab bar:
-1. **Today (home).** Date selector (previous/next day), total kcal, macro breakdown, progress bar when a target is set, list of entries with edit and delete. "Copy from another day" button. Prominent Add button.
+1. **Today (home).** Date selector (previous/next day; tapping the Today tab always returns to today, while opening a day from History or logging to a past day stays on that day), total kcal, macro breakdown, progress bar when a target is set, list of entries with edit and delete. "Copy from another day" button. Prominent Add button.
 2. **Add.** One screen with: search box over saved foods and recipes only; recents at the top; "New food" form (Save to my foods checkbox, checked by default); "Quick add" form; "New recipe" entry point. Choosing a food asks for an amount, then logs it.
 3. **Library.** Foods and recipes, searchable, with edit and delete (confirm or offer undo). A recipe's edit sheet also offers "Cook again (new batch)". Saving an edit to a food or recipe shows the "apply to entries" prompt described under Editing behaviour.
 4. **History.** Calendar of kcal per day (tap a day to open it on Today), with daily averages below.

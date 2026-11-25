@@ -29,6 +29,7 @@ const TODAY_UK = pad2(now.getDate()) + '/' + pad2(now.getMonth() + 1) + '/' + no
 const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12);
 // On the 1st of a month, yesterday is in the previous month's calendar.
 const YESTERDAY_IN_LAST_MONTH = yest.getMonth() !== now.getMonth();
+const YESTERDAY = yest.getFullYear() + '-' + pad2(yest.getMonth() + 1) + '-' + pad2(yest.getDate());
 
 function loadApp() {
   return new Promise((resolve) => {
@@ -538,6 +539,36 @@ const steps = [
     clickRow('library-recipes', 'Porridge');
     eq($('recipe-weight').value, '800', 'undo brings back the old batch');
     $('recipe-form').querySelector('[data-close]').click();
+  }],
+
+  ['the Today tab always opens today; History and logging keep their day', () => {
+    tab('today');
+    $('prev-day').click();
+    eq(text('day-title'), 'Yesterday', 'looking at yesterday');
+    tab('add');
+    eq(text('add-date-note'), 'Adding to yesterday.', 'Add logs to the day being viewed');
+    tab('today');
+    eq(text('day-title'), 'Today', 'the Today tab goes back to today');
+    totalIs('1736');
+    tab('add');
+    eq(text('add-date-note'), 'Adding to today.', 'and Add follows');
+    // Logging to a past day comes back to that day, so you see what you added.
+    tab('today');
+    $('prev-day').click();
+    tab('add');
+    $('quick-add-btn').click();
+    type('quick-kcal', '50');
+    submit('quick-form');
+    eq(text('day-title'), 'Yesterday', 'after logging, still on the day logged to');
+    $('toast-undo').click();
+    // Opening a past day from History keeps that day.
+    tab('history');
+    if (YESTERDAY_IN_LAST_MONTH) $('prev-month').click();
+    doc.querySelector('.cal-day[data-date="' + YESTERDAY + '"]').click();
+    eq(text('day-title'), 'Yesterday', 'History opens the tapped day');
+    tab('today');
+    eq(text('day-title'), 'Today', 'Today tab resets again');
+    $('month-title-btn').click();
   }],
 ];
 
