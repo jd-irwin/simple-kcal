@@ -46,7 +46,8 @@
       </div>
 
       <ul id="entry-list" class="list"></ul>
-      <p id="entry-empty" class="placeholder" hidden>Nothing logged on this day yet. Tap Add to log a food.</p>
+      <p id="entry-empty" class="placeholder" hidden>Nothing logged on this day yet. Tap Add to log a food, or copy entries from another day.</p>
+      <button type="button" id="copy-btn" class="btn btn-wide">Copy from another day</button>
 
       <button type="button" id="today-add" class="btn btn-primary fab">+ Add</button>
     </section>
@@ -360,6 +361,28 @@
       <div class="button-row">
         <button type="button" class="btn" data-close>Cancel</button>
         <button type="submit" class="btn btn-primary">Log</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Copy entries from another day to the day being viewed -->
+  <dialog id="copy-dialog" class="sheet">
+    <form id="copy-form" novalidate>
+      <h2>Copy entries</h2>
+      <div class="date-nav">
+        <button type="button" id="copy-prev" class="icon-btn" aria-label="Earlier day">&#8249;</button>
+        <div class="day-title">
+          <span id="copy-day"></span>
+          <span id="copy-day-total" class="muted small"></span>
+        </div>
+        <button type="button" id="copy-next" class="icon-btn" aria-label="Later day">&#8250;</button>
+      </div>
+      <ul id="copy-list" class="list"></ul>
+      <p id="copy-empty" class="muted small" hidden></p>
+      <p class="message error" hidden></p>
+      <div class="button-row">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" id="copy-submit" class="btn btn-primary">Copy</button>
       </div>
     </form>
   </dialog>

@@ -6,6 +6,7 @@ import { showScreen, setDate, registerScreen } from './nav.js';
 import { MACROS, MACRO_NAMES, macroLine, entryName } from './text.js';
 import { $, makeRow } from './dom.js';
 import { openEntry } from './entry.js';
+import { openCopy } from './copy.js';
 
 function renderToday() {
   $('day-title').textContent = Calc.dayTitle(app.selectedDate, app.todayKey);
@@ -43,4 +44,5 @@ export function init() {
   $('next-day').addEventListener('click', () => setDate(Calc.addDays(app.selectedDate, 1)));
   $('day-title-btn').addEventListener('click', () => setDate(app.todayKey));
   $('today-add').addEventListener('click', () => showScreen('add'));
+  $('copy-btn').addEventListener('click', openCopy);
 }

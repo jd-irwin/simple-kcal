@@ -16,9 +16,10 @@ import * as apply from './ui/apply.js';
 import * as recipe from './ui/recipe.js';
 import * as ingredient from './ui/ingredient.js';
 import * as entry from './ui/entry.js';
+import * as copy from './ui/copy.js';
 
 // Screens register in this order, which is the order render() draws them.
-const MODULES = [nav, messages, today, add, library, history, settings, amount, food, apply, recipe, ingredient, entry];
+const MODULES = [nav, messages, today, add, library, history, settings, amount, food, apply, recipe, ingredient, entry, copy];
 
 function init() {
   load();

@@ -28,6 +28,7 @@ Primary: calorie and macro tracking.
 8. No food database or API. Search only ever covers the user's own foods and recipes, so the list never fills with clutter.
 9. Saving a food is optional, and defaults to on. When adding a food, a "Save to my foods" checkbox is shown, checked by default. Unchecking it means the entry goes to today's log only. There is no later prompt to save an unsaved food.
 10. Quick add: log calories and optional macros with no food or recipe behind them. Calories required, name optional (shown as "Quick add" if blank), macros optional.
+11. Copy entries from another day onto the day being viewed. The sheet opens on the most recent earlier day with entries, all ticked; arrows choose another day. Copies are snapshots like any entry: same quantity, unit, per-unit values and `sourceId`, with a new id, date and `created`. Copying updates the linked food's or recipe's `lastUsed`. Undo is offered.
 
 Secondary: easy recipe creation (see Recipes).
 
@@ -105,7 +106,7 @@ The JavaScript is ES modules (`<script type="module">`), so the app must be serv
 Releasing: bump `APP_VERSION` in `version.js` and `VERSION` in `sw.js` together. Every app file must be listed in `FILES` in `sw.js`. `node test.js` checks both.
 
 Screens, bottom tab bar:
-1. **Today (home).** Date selector (previous/next day), total kcal, macro breakdown, list of entries with edit and delete. Prominent Add button.
+1. **Today (home).** Date selector (previous/next day), total kcal, macro breakdown, list of entries with edit and delete. "Copy from another day" button. Prominent Add button.
 2. **Add.** One screen with: search box over saved foods and recipes only; recents at the top; "New food" form (Save to my foods checkbox, checked by default); "Quick add" form; "New recipe" entry point. Choosing a food asks for an amount, then logs it.
 3. **Library.** Foods and recipes, searchable, with edit and delete (confirm or offer undo). Saving an edit to a food or recipe shows the "apply to entries" prompt described under Editing behaviour.
 4. **History.** Calendar view (last build stage).

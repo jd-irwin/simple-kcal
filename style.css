@@ -634,3 +634,22 @@ h2 + h3.sheet-section {
   margin-top: 12px;
   text-align: center;
 }
+
+/* ---------- Copy entries ---------- */
+
+#copy-day {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+label.row input[type="checkbox"] {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

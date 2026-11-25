@@ -3,6 +3,15 @@
 import { MACROS, isNum } from './values.js';
 import { entryTotals } from './entries.js';
 
+// The most recent date before key that has at least one entry, or null if there is none.
+export function previousLoggedDay(entries, key) {
+  let best = null;
+  for (const e of entries) {
+    if (e.date < key && (best === null || e.date > best)) best = e.date;
+  }
+  return best;
+}
+
 export function entriesForDate(entries, key) {
   return entries
     .filter((e) => e.date === key)

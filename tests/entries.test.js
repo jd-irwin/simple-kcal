@@ -128,3 +128,26 @@ test('defaultQty uses the latest linked entry, else 100 g or 1 item', () => {
   assert.equal(Calc.defaultQty(egg, entries), 1);
   assert.equal(Calc.defaultQty(Object.assign({}, oats, { unit: 'item' }), entries), 1); // unit changed
 });
+
+test('copyEntries keeps amount, nutrition and link, with new id, date and created in order', () => {
+  const recipe = { name: 'Chilli', ingredients: [{ name: 'Beef', unit: '100g', amount: 500, kcal: 250, protein: 26, carbs: 0, fat: 15 }], portions: 4, cookedWeight: 1000 };
+  const originals = [
+    Object.assign({ id: 'a', date: '2026-11-24', created: 100 }, Calc.entryFromFood(oats, 60, 'oats')),
+    Object.assign({ id: 'b', date: '2026-11-24', created: 200 }, Calc.entryFromRecipe(recipe, 1.5, 'portion', 'r1')),
+    Object.assign({ id: 'c', date: '2026-11-24', created: 300 }, Calc.entryFromQuick({ kcal: 120 })),
+  ];
+  const before = JSON.stringify(originals);
+  const copies = Calc.copyEntries(originals, '2026-11-25', ['x', 'y', 'z'], 5000);
+  assert.equal(JSON.stringify(originals), before, 'originals unchanged');
+  assert.deepEqual(copies.map((c) => c.id), ['x', 'y', 'z']);
+  assert.deepEqual(copies.map((c) => c.date), ['2026-11-25', '2026-11-25', '2026-11-25']);
+  assert.deepEqual(copies.map((c) => c.created), [5000, 5001, 5002]);
+  copies.forEach((c, i) => {
+    const o = originals[i];
+    for (const k of ['name', 'source', 'sourceId', 'quantity', 'unit', 'perAmount', 'kcal', 'protein', 'carbs', 'fat']) {
+      assert.equal(c[k], o[k], k);
+    }
+    assert.deepEqual(Calc.entryTotals(c), Calc.entryTotals(o));
+  });
+  assert.deepEqual(Calc.copyEntries([], '2026-11-25', [], 1), []);
+});

@@ -315,6 +315,38 @@ const steps = [
     tab('settings');
     ok(/^\d+\.\d+\.\d+$/.test(text('app-version')), 'version shown: ' + text('app-version'));
   }],
+
+  ['copy entries from another day, then undo', () => {
+    tab('today');
+    $('next-day').click();
+    eq(text('day-title'), 'Tomorrow', 'viewing tomorrow');
+    totalIs('0');
+    $('copy-btn').click();
+    ok(dialogOpen('copy-dialog'), 'copy sheet opens');
+    eq(text('copy-day'), 'Today', 'opens on the last day with entries');
+    eq(rows('copy-list').length, 6, 'lists that day\'s entries');
+    eq(text('copy-submit'), 'Copy 6 to tomorrow', 'all ticked by default');
+    rows('copy-list').find((r) => r.querySelector('.row-title').textContent === 'Banana').querySelector('input').click();
+    eq(text('copy-submit'), 'Copy 5 to tomorrow', 'unticking updates the count');
+    submit('copy-form');
+    ok(!dialogOpen('copy-dialog'), 'sheet closes');
+    totalIs('1331'); // 1436 without the 105 kcal banana
+    eq(rowTitles('entry-list').join('|'), 'Oats|Quick add|Oats|Porridge|Porridge', 'copies keep their order');
+    $('toast-undo').click();
+    totalIs('0');
+  }],
+
+  ['copy sheet on a day with nothing logged', () => {
+    $('copy-btn').click();
+    eq(text('copy-day'), 'Today', 'opens on the last day with entries');
+    $('copy-prev').click();
+    eq(text('copy-day'), 'Yesterday', 'arrows change the day');
+    ok(visible('copy-empty'), 'says nothing is logged and what to do');
+    ok($('copy-submit').disabled, 'nothing to copy');
+    $('copy-form').querySelector('[data-close]').click();
+    $('day-title-btn').click();
+    totalIs('1436');
+  }],
 ];
 
 async function run() {

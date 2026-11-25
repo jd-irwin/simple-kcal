@@ -68,6 +68,13 @@ export function entryFromRecipe(recipe, quantity, unit, sourceId) {
   };
 }
 
+// Copies of entries for another date: same amount, nutrition and link, with a new id, date and
+// created time. ids come from the caller because calc has no randomness. created counts up from
+// now in the order given, so the copies keep the original order.
+export function copyEntries(entries, date, ids, now) {
+  return entries.map((e, i) => Object.assign({}, e, { id: ids[i], date: date, created: now + i }));
+}
+
 // A copy of the entry with a new quantity. Per-unit values are untouched; nothing is looked up.
 export function setEntryQuantity(entry, quantity) {
   return Object.assign({}, entry, { quantity: quantity });

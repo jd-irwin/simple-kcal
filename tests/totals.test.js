@@ -94,3 +94,15 @@ test('dailyKcal: a day of 0 kcal entries is 0, a day with no entries is absent',
   assert.equal('2026-11-23' in t, false);
   assert.deepEqual(Calc.dailyKcal([]), {});
 });
+
+test('previousLoggedDay finds the latest earlier day with entries, skipping gaps', () => {
+  const at = (date) => Object.assign({ date }, Calc.entryFromQuick({ kcal: 1 }));
+  const entries = [at('2026-11-20'), at('2026-11-23'), at('2026-11-23'), at('2026-11-25'), at('2026-11-26')];
+  assert.equal(Calc.previousLoggedDay(entries, '2026-11-25'), '2026-11-23'); // 24th was skipped
+  assert.equal(Calc.previousLoggedDay(entries, '2026-11-24'), '2026-11-23');
+  assert.equal(Calc.previousLoggedDay(entries, '2026-11-27'), '2026-11-26');
+  assert.equal(Calc.previousLoggedDay(entries, '2026-11-21'), '2026-11-20');
+  assert.equal(Calc.previousLoggedDay(entries, '2026-11-20'), null); // nothing earlier
+  assert.equal(Calc.previousLoggedDay([], '2026-11-25'), null);
+  assert.equal(Calc.previousLoggedDay([at('2026-12-31')], '2027-01-01'), '2026-12-31'); // across a year
+});
