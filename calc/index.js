@@ -5,7 +5,7 @@ import {
   scaleNullable,
 } from './values.js';
 import {
-  dateKey, addDays, formatDate, weekdayDate, isNamedDay, dayTitle, addMonths, formatMonth, monthGrid,
+  dateKey, addDays, formatDate, weekdayDate, isNamedDay, dayTitle, addMonths, formatMonth, monthGrid, monthRange,
 } from './dates.js';
 import {
   isRecipe, ingredientFromFood, ingredientValues, recipeTotals, recipeCanLogGrams, recipePerGram, recipePerPortion, recipePortionWeight, recipeUnitValues, recipeServing, recipeChanged,
@@ -14,7 +14,7 @@ import {
   defaultQty, foodEntryUnit, entryTotals, entryFromFood, entryFromQuick, copyEntries, setEntryQuantity, setEntryNutrition, nutritionChanged, linkedEntryCounts, applyToEntries, entryFromRecipe, defaultRecipeAmount,
 } from './entries.js';
 import {
-  dailyKcal, entriesForDate, previousLoggedDay, macroStatus, sumEntries, targetProgress,
+  dailyKcal, entriesForDate, previousLoggedDay, macroStatus, sumEntries, targetProgress, averageKcal,
 } from './totals.js';
 import {
   fmtQty, formatAmount, formatEntryAmount, parseNumber, fmtKcal, fmtMacro,
@@ -28,13 +28,13 @@ import {
 
 const Calc = {
   dateKey, addDays, formatDate, weekdayDate, isNamedDay, dayTitle,
-  addMonths, formatMonth, monthGrid, dailyKcal,
+  addMonths, formatMonth, monthGrid, monthRange, dailyKcal,
   fmtQty, formatAmount, formatEntryAmount, parseNumber,
   entriesForDate, previousLoggedDay, searchRecent, searchByName, defaultQty, macroStatus,
   scaleNullable, foodEntryUnit, entryTotals, entryFromFood, entryFromQuick, copyEntries, setEntryQuantity,
   setEntryNutrition, nutritionChanged,
   isRecipe, linkedEntryCounts, applyToEntries,
-  sumEntries, targetProgress,
+  sumEntries, targetProgress, averageKcal,
   ingredientFromFood, ingredientValues, recipeTotals, recipeCanLogGrams, recipePerGram,
   recipePerPortion, recipePortionWeight, recipeUnitValues, recipeServing, entryFromRecipe,
   recipeChanged, defaultRecipeAmount,

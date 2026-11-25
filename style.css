@@ -689,3 +689,33 @@ label.row input[type="checkbox"] {
   color: var(--over);
   font-weight: 600;
 }
+
+/* ---------- History averages ---------- */
+
+.avg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.avg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.avg-kcal {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.avg-target {
+  color: var(--muted);
+}
+
+.avg-target.is-over {
+  color: var(--over);
+  font-weight: 600;
+}

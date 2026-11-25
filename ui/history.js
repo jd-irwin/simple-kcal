@@ -1,9 +1,10 @@
-// History screen: a month calendar of kcal per day.
+// History screen: a month calendar of kcal per day, with averages.
 
 import Calc from '../calc/index.js';
 import { app } from './store.js';
 import { showScreen, setDate, registerScreen } from './nav.js';
 import { $ } from './dom.js';
+import { plural } from './text.js';
 
 // Month shown on the History tab: { y, m } with m 1-12.
 let historyMonth = monthOf(app.todayKey);
@@ -46,6 +47,30 @@ function renderHistory() {
       container.appendChild(btn);
     }
   }
+  renderAverages();
+}
+
+// Fills one average tile: '2021 kcal', '16 logged days', and how it compares with the target.
+function fillAverage(prefix, avg) {
+  const none = avg.days === 0;
+  $(prefix + '-kcal').textContent = none ? '–' : Calc.fmtKcal(avg.average) + ' kcal';
+  $(prefix + '-days').textContent = none ? 'Nothing logged yet' : plural(avg.days, 'logged day', 'logged days');
+  const progress = none ? null : Calc.targetProgress(avg.average, app.state.targetKcal);
+  const target = $(prefix + '-target');
+  target.hidden = !progress;
+  target.classList.toggle('is-over', !!progress && progress.over > 0);
+  if (!progress) return;
+  if (progress.over > 0) target.textContent = progress.over + ' over target';
+  else if (progress.left > 0) target.textContent = progress.left + ' under target';
+  else target.textContent = 'On target';
+}
+
+function renderAverages() {
+  const { y, m } = historyMonth;
+  const month = Calc.monthRange(y, m);
+  $('avg-month-label').textContent = Calc.formatMonth(y, m);
+  fillAverage('avg-month', Calc.averageKcal(app.state.entries, month.from, month.to, app.todayKey));
+  fillAverage('avg-week', Calc.averageKcal(app.state.entries, Calc.addDays(app.todayKey, -7), Calc.addDays(app.todayKey, -1), app.todayKey));
 }
 
 function changeMonth(n) {

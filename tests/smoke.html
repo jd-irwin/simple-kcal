@@ -26,6 +26,9 @@ const pad2 = (n) => String(n).padStart(2, '0');
 const now = new Date();
 const TODAY = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
 const TODAY_UK = pad2(now.getDate()) + '/' + pad2(now.getMonth() + 1) + '/' + now.getFullYear();
+const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12);
+// On the 1st of a month, yesterday is in the previous month's calendar.
+const YESTERDAY_IN_LAST_MONTH = yest.getMonth() !== now.getMonth();
 
 function loadApp() {
   return new Promise((resolve) => {
@@ -383,6 +386,40 @@ const steps = [
     tab('today');
     ok(!visible('target'), 'no bar once cleared');
     totalIs('1436');
+  }],
+
+  ['history averages leave out today, and compare with the target', () => {
+    tab('history');
+    eq(text('avg-week-days'), 'Nothing logged yet', 'only today has entries, and today is not counted');
+    eq(text('avg-week-kcal'), '–', 'no average shown as a dash, never 0');
+    // Copy today's entries onto yesterday so there is a finished day to average.
+    tab('today');
+    $('prev-day').click();
+    eq(text('day-title'), 'Yesterday', 'viewing yesterday');
+    $('copy-btn').click();
+    for (let i = 0; i < 5 && text('copy-day') !== 'Today'; i++) $('copy-next').click();
+    eq(text('copy-day'), 'Today', 'source is today');
+    submit('copy-form');
+    totalIs('1436');
+    $('day-title-btn').click();
+    tab('history');
+    if (YESTERDAY_IN_LAST_MONTH) $('prev-month').click();
+    eq(text('avg-month-kcal') + ' / ' + text('avg-month-days'), '1436 kcal / 1 logged day', 'month average');
+    eq(text('avg-week-kcal') + ' / ' + text('avg-week-days'), '1436 kcal / 1 logged day', 'last 7 days');
+    ok(!visible('avg-week-target'), 'no target comparison without a target');
+    tab('settings');
+    type('target-kcal', '2000');
+    submit('target-form');
+    tab('history');
+    eq(text('avg-week-target'), '564 under target', 'compared with target');
+    ok(!$('avg-week-target').classList.contains('is-over'), 'under is not marked over');
+    tab('settings');
+    type('target-kcal', '1400');
+    submit('target-form');
+    tab('history');
+    eq(text('avg-week-target'), '36 over target', 'over target');
+    ok($('avg-week-target').classList.contains('is-over'), 'over is marked');
+    $('month-title-btn').click();
   }],
 ];
 

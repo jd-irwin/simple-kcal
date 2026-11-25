@@ -1,2 +1,2 @@
 // Shown in Settings. Must match VERSION in sw.js (checked by node test.js); bump both for every release.
-export const APP_VERSION = '0.10.0';
+export const APP_VERSION = '0.11.0';

@@ -124,3 +124,11 @@ test('monthGrid: BST change months have no missing or repeated days', () => {
   // 28 March 2027 is a Sunday, so it sits in the last column.
   assert.ok(mar.some((w) => w[6] === '2027-03-28'));
 });
+
+test('monthRange gives the first and last day, including leap Februaries', () => {
+  assert.deepEqual(Calc.monthRange(2026, 11), { from: '2026-11-01', to: '2026-11-30' });
+  assert.deepEqual(Calc.monthRange(2026, 12), { from: '2026-12-01', to: '2026-12-31' });
+  assert.deepEqual(Calc.monthRange(2027, 2), { from: '2027-02-01', to: '2027-02-28' });
+  assert.deepEqual(Calc.monthRange(2028, 2), { from: '2028-02-01', to: '2028-02-29' });
+  assert.deepEqual(Calc.monthRange(2026, 3), { from: '2026-03-01', to: '2026-03-31' }); // BST starts
+});

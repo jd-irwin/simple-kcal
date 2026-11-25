@@ -119,3 +119,33 @@ test('targetProgress: none without a target, left and over from the rounded tota
   assert.equal(Calc.fmtKcal(1449.5), '1450');
   assert.equal(Calc.targetProgress(null, 2000).left, 2000);
 });
+
+test('averageKcal counts logged days in range before today only', () => {
+  const at = (date, kcal) => Object.assign({ date }, Calc.entryFromQuick({ kcal }));
+  const entries = [
+    at('2026-10-31', 5000),                      // before the range
+    at('2026-11-01', 1800),                      // first day of range
+    at('2026-11-02', 1000), at('2026-11-02', 1200), // two entries make one day of 2200
+    // 3rd to 9th: nothing logged, so not counted as 0
+    at('2026-11-10', 0),                         // logged, at 0 kcal: counts
+    at('2026-11-24', 2000),                      // yesterday
+    at('2026-11-25', 900),                       // today: not finished, excluded
+    at('2026-11-27', 3000),                      // future: excluded
+  ];
+  const nov = Calc.averageKcal(entries, '2026-11-01', '2026-11-30', '2026-11-25');
+  assert.equal(nov.days, 4);
+  approx(nov.average, (1800 + 2200 + 0 + 2000) / 4);
+  const week = Calc.averageKcal(entries, Calc.addDays('2026-11-25', -7), Calc.addDays('2026-11-25', -1), '2026-11-25');
+  assert.deepEqual(week, { days: 1, average: 2000 });
+  // A past month counts every logged day in it.
+  assert.deepEqual(Calc.averageKcal(entries, '2026-10-01', '2026-10-31', '2026-11-25'), { days: 1, average: 5000 });
+  // Nothing logged: no average, never 0.
+  assert.deepEqual(Calc.averageKcal(entries, '2026-12-01', '2026-12-31', '2026-11-25'), { days: 0, average: null });
+  assert.deepEqual(Calc.averageKcal([], '2026-11-01', '2026-11-30', '2026-11-25'), { days: 0, average: null });
+});
+
+test('average compared with a target uses the rounded average', () => {
+  // 2049.6 shows as 2050; with a 2000 target that is 50 over, not 49.6.
+  assert.deepEqual(Calc.targetProgress(2049.6, 2000), { percent: 100, left: 0, over: 50 });
+  assert.equal(Calc.fmtKcal(2049.6), '2050');
+});

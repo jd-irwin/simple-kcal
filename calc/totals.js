@@ -17,6 +17,22 @@ export function targetProgress(kcal, target) {
   };
 }
 
+// Average kcal per logged day from `from` to `to` (inclusive). Only days with at least one
+// entry count, and only days before todayKey, because today is not finished yet.
+// Returns { days, average }; average is null when no day counts.
+export function averageKcal(entries, from, to, todayKey) {
+  const totals = dailyKcal(entries);
+  let days = 0;
+  let sum = 0;
+  for (const [date, kcal] of Object.entries(totals)) {
+    if (date >= from && date <= to && date < todayKey) {
+      days++;
+      sum += kcal;
+    }
+  }
+  return { days: days, average: days ? sum / days : null };
+}
+
 // The most recent date before key that has at least one entry, or null if there is none.
 export function previousLoggedDay(entries, key) {
   let best = null;

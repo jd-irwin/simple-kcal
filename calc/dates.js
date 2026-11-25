@@ -41,6 +41,12 @@ export function formatMonth(y, m) {
   return MONTHS[m - 1] + ' ' + y;
 }
 
+// First and last date keys of a month, e.g. { from: '2026-02-01', to: '2026-02-28' }.
+export function monthRange(y, m) {
+  const last = new Date(y, m, 0, 12).getDate();
+  return { from: y + '-' + pad2(m) + '-01', to: y + '-' + pad2(m) + '-' + pad2(last) };
+}
+
 // Weeks (Monday first) of date keys for a month; days outside the month are null.
 export function monthGrid(y, m) {
   const first = new Date(y, m - 1, 1, 12);

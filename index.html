@@ -101,6 +101,25 @@
         <div class="cal-days" id="cal-days"></div>
       </div>
       <p class="muted small cal-hint">Tap a day to see its log.</p>
+
+      <div class="card">
+        <h2>Daily averages</h2>
+        <div class="avg-grid">
+          <div class="avg" id="avg-month">
+            <span class="muted small" id="avg-month-label"></span>
+            <strong class="avg-kcal" id="avg-month-kcal"></strong>
+            <span class="muted small" id="avg-month-days"></span>
+            <span class="avg-target small" id="avg-month-target"></span>
+          </div>
+          <div class="avg" id="avg-week">
+            <span class="muted small">Last 7 days</span>
+            <strong class="avg-kcal" id="avg-week-kcal"></strong>
+            <span class="muted small" id="avg-week-days"></span>
+            <span class="avg-target small" id="avg-week-target"></span>
+          </div>
+        </div>
+        <p class="muted small">Only days with something logged count. Today counts once it is over.</p>
+      </div>
     </section>
 
     <!-- Settings -->

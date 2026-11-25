@@ -30,6 +30,7 @@ Primary: calorie and macro tracking.
 10. Quick add: log calories and optional macros with no food or recipe behind them. Calories required, name optional (shown as "Quick add" if blank), macros optional.
 11. Copy entries from another day onto the day being viewed. The sheet opens on the most recent earlier day with entries, all ticked; arrows choose another day. Copies are snapshots like any entry: same quantity, unit, per-unit values and `sourceId`, with a new id, date and `created`. Copying updates the linked food's or recipe's `lastUsed`. Undo is offered.
 12. Optional daily calorie target, set in Settings (blank means none, and the app looks as it did without one). Today shows a progress bar under the total: "Target 2000 kcal · 550 left", or full and amber with "150 over". Left and over are worked out from the rounded total, so the shown numbers add up.
+13. History shows daily averages for the month on screen and for the last 7 days (the 7 days before today): average kcal per logged day and the number of logged days. Only days with at least one entry count (a day logged at 0 kcal counts), and today never counts because it is not finished. With a target set, each shows "N under target" or "N over target" (amber), from the rounded average.
 
 Secondary: easy recipe creation (see Recipes).
 
@@ -113,7 +114,7 @@ Screens, bottom tab bar:
 1. **Today (home).** Date selector (previous/next day), total kcal, macro breakdown, progress bar when a target is set, list of entries with edit and delete. "Copy from another day" button. Prominent Add button.
 2. **Add.** One screen with: search box over saved foods and recipes only; recents at the top; "New food" form (Save to my foods checkbox, checked by default); "Quick add" form; "New recipe" entry point. Choosing a food asks for an amount, then logs it.
 3. **Library.** Foods and recipes, searchable, with edit and delete (confirm or offer undo). Saving an edit to a food or recipe shows the "apply to entries" prompt described under Editing behaviour.
-4. **History.** Calendar view (last build stage).
+4. **History.** Calendar of kcal per day (tap a day to open it on Today), with daily averages below.
 5. **Settings.** Daily target, export, import, last backup, app version.
 
 Design principles:
