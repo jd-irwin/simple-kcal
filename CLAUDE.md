@@ -35,7 +35,7 @@ Secondary: easy recipe creation (see Recipes).
 
 Nice to have, built last: a calendar view showing calories per day, tap a day to see its log.
 
-Not wanted: macro targets, barcode scanning, accounts, sync across devices, social features, a food database lookup.
+Not wanted: barcode scanning, accounts, sync across devices, social features, a food database lookup.
 
 ## Data model
 
