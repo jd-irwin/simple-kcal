@@ -91,6 +91,10 @@ Three collections, pans, a daily target, plus settings. All ids are short random
 - Deleting a saved food or recipe never changes any entry. The entry keeps its values and loses nothing but the link.
 - There is no "update to current library values" button on entries. Do not add one.
 
+## Licence
+
+- GPL-3.0-or-later, copyright jd-irwin. The full text is in `LICENSE`; keep it unmodified. The copyright and licence notice sits at the top of `app.js`, and `package.json` carries the SPDX id.
+
 ## Storage and backup
 
 - Local only: `localStorage` under one versioned key, or IndexedDB if there is a clear reason. Include a `schemaVersion` and a migration function from the start.

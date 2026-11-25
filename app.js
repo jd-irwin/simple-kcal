@@ -1,3 +1,17 @@
+// simple-kcal: a personal calorie and macro tracker.
+// Copyright (C) 2026 jd-irwin
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU General Public License as published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along with this program (the
+// LICENSE file). If not, see <https://www.gnu.org/licenses/>.
+
 // Entry point: loads the data, wires up every screen and dialog, and draws the app.
 // Calculation lives in calc/ (pure, tested by node test.js); screens and dialogs live in ui/.
 
