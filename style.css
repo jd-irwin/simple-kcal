@@ -719,3 +719,16 @@ label.row input[type="checkbox"] {
   color: var(--over);
   font-weight: 600;
 }
+
+/* Radio and checkbox circles keep their size when the label text wraps. */
+.segmented input,
+.check input {
+  flex: none;
+}
+
+/* An option label with a second, smaller line (e.g. a pan and its weight). */
+.option-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}

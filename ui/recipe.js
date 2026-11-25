@@ -20,13 +20,58 @@ function softNumber(input) {
   return n > 0 ? n : null;
 }
 
+// The pan chosen under "Weighed in", or null for None (or a pan deleted since).
+function chosenPan() {
+  const box = $('recipe-pan-field').querySelector('input:checked');
+  return box && box.value ? app.state.pans.find((pan) => pan.id === box.value) || null : null;
+}
+
+// Builds the "Weighed in" buttons: None plus each saved pan. Hidden when there are no pans.
+function renderPanChoice(selectedId) {
+  const field = $('recipe-pan-field');
+  field.querySelectorAll('label').forEach((label) => label.remove());
+  const pans = Calc.searchByName(app.state.pans, '');
+  field.hidden = pans.length === 0;
+  const chosen = pans.some((pan) => pan.id === selectedId) ? selectedId : '';
+  [{ id: '', name: 'None' }].concat(pans).forEach((pan) => {
+    const input = el('input');
+    input.type = 'radio';
+    input.name = 'recipe-pan';
+    input.value = pan.id;
+    input.checked = pan.id === chosen;
+    const label = el('label');
+    // Name with the empty weight on its own line beneath, so long names wrap cleanly.
+    const text = el('span', 'option-text', pan.name);
+    if (pan.id) text.append(el('span', 'muted small', Calc.fmtQty(pan.weight) + ' g'));
+    label.append(input, text);
+    field.append(label);
+  });
+}
+
+// Cooked weight as typed: the field itself, or the scale reading less the chosen pan.
+function draftWeight() {
+  const typed = softNumber($('recipe-weight'));
+  const pan = chosenPan();
+  return pan ? Calc.netWeight(typed, pan.weight) : typed;
+}
+
+function weightNote(pan) {
+  if (!pan) return 'Weigh the finished batch without the pan to log by grams. Leave blank to log by portion only.';
+  const panText = Calc.fmtQty(pan.weight) + ' g';
+  const reading = softNumber($('recipe-weight'));
+  if (reading === null) return 'Weigh the batch in the ' + pan.name + ' and enter the reading. The pan (' + panText + ') is taken off.';
+  const net = Calc.netWeight(reading, pan.weight);
+  return net === null ? 'The reading must be more than the pan (' + panText + ').'
+    : 'Cooked weight ' + Calc.fmtQty(net) + ' g after the ' + panText + ' pan.';
+}
+
 // The recipe as currently typed, for live previews. Not validated.
 function draftRecipe() {
   return {
     name: $('recipe-name').value.trim(),
     ingredients: draftIngredients,
     portions: softNumber($('recipe-portions')),
-    cookedWeight: softNumber($('recipe-weight')),
+    cookedWeight: draftWeight(),
   };
 }
 
@@ -44,6 +89,7 @@ export function openNewRecipe(prefillName) {
   $('recipe-save').checked = true;
   checkRadio('recipe-unit', 'portion');
   $('recipe-qty').value = '1';
+  renderPanChoice(null);
   setRecipeMode();
   renderRecipe();
   openDialog($('recipe-dialog'), prefillName ? $('add-ingredient') : $('recipe-name'));
@@ -55,7 +101,9 @@ export function openEditRecipe(recipe) {
   draftIngredients = recipe.ingredients.map((ing) => Object.assign({}, ing));
   $('recipe-name').value = recipe.name;
   $('recipe-portions').value = numToField(recipe.portions);
+  // The stored weight is without the pan, so the pan starts at None. Its remembered pan is kept on save.
   $('recipe-weight').value = numToField(recipe.cookedWeight);
+  renderPanChoice(null);
   setRecipeMode();
   renderRecipe();
   openDialog($('recipe-dialog'), $('recipe-form').querySelector('[data-close]'));
@@ -72,6 +120,9 @@ function setRecipeMode() {
 
 function renderRecipe() {
   const recipe = draftRecipe();
+  const pan = chosenPan();
+  $('recipe-weight-label').textContent = pan ? 'Scale reading (g)' : 'Cooked weight (g)';
+  $('recipe-weight-note').textContent = weightNote(pan);
 
   const list = $('ingredient-list');
   list.replaceChildren();
@@ -120,13 +171,26 @@ function readRecipe() {
   if (draftIngredients.length === 0) { formError(form, 'Add at least one ingredient.'); $('add-ingredient').focus(); return undefined; }
   const portions = readRequired(form, $('recipe-portions'), 'number of portions', false);
   if (portions === undefined) return undefined;
-  const weight = Calc.parseNumber($('recipe-weight').value);
-  if (Number.isNaN(weight) || weight === 0) {
+  const reading = Calc.parseNumber($('recipe-weight').value);
+  if (Number.isNaN(reading) || reading === 0) {
     formError(form, 'Enter the cooked weight in grams, for example 1200, or leave it blank.');
     $('recipe-weight').focus();
     return undefined;
   }
-  return { name, ingredients: draftIngredients.slice(), portions, cookedWeight: weight };
+  const pan = chosenPan();
+  let weight = reading;
+  if (pan && reading !== null) {
+    weight = Calc.netWeight(reading, pan.weight);
+    if (weight === null) {
+      formError(form, 'The scale reading must be more than the ' + pan.name + ' (' + Calc.fmtQty(pan.weight) +
+        ' g). Weigh the batch in the pan, or choose None.');
+      $('recipe-weight').focus();
+      return undefined;
+    }
+  }
+  // The pan last used, for next time. Editing without choosing a pan keeps the one remembered.
+  const panId = pan ? pan.id : (editingRecipe && editingRecipe.panId) || null;
+  return { name, ingredients: draftIngredients.slice(), portions, cookedWeight: weight, panId };
 }
 
 function submitRecipe(e) {
@@ -197,5 +261,9 @@ export function init() {
   document.querySelectorAll('input[name="recipe-unit"]').forEach((r) => r.addEventListener('change', changeRecipeUnit));
   $('recipe-save-only').addEventListener('click', saveOnlyRecipe);
   $('recipe-delete').addEventListener('click', deleteRecipe);
+  $('recipe-pan-field').addEventListener('change', () => {
+    renderRecipe();
+    $('recipe-weight').focus();
+  });
   $('add-ingredient').addEventListener('click', () => openIngredient(draftIngredients, -1, renderRecipe));
 }

@@ -44,6 +44,14 @@ export function recipeTotals(ingredients) {
   return out;
 }
 
+// Cooked weight of a batch weighed in its pan: the scale reading less the empty pan.
+// null when the reading is missing or not more than the pan, which means it was weighed wrongly.
+export function netWeight(reading, panWeight) {
+  if (!isNum(reading) || !isNum(panWeight)) return null;
+  const net = reading - panWeight;
+  return net > 0 ? net : null;
+}
+
 export function recipeCanLogGrams(recipe) {
   return isNum(recipe.cookedWeight) && recipe.cookedWeight > 0;
 }

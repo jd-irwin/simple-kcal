@@ -421,6 +421,73 @@ const steps = [
     ok($('avg-week-target').classList.contains('is-over'), 'over is marked');
     $('month-title-btn').click();
   }],
+
+  ['save a pan in Settings', () => {
+    tab('settings');
+    eq(rows('pan-list').length, 0, 'no pans yet');
+    $('add-pan').click();
+    ok(dialogOpen('pan-dialog'), 'pan sheet opens');
+    type('pan-name', 'Big pot');
+    type('pan-weight', 'heavy');
+    submit('pan-form');
+    const err = $('pan-form').querySelector('.message.error');
+    ok(!err.hidden && err.textContent.includes('empty weight in grams'), 'error says what to enter: ' + err.textContent);
+    type('pan-weight', '1450');
+    submit('pan-form');
+    ok(!dialogOpen('pan-dialog'), 'sheet closes');
+    eq(rowTitles('pan-list').join('|'), 'Big pot', 'pan listed');
+    eq(rows('pan-list')[0].querySelector('.row-kcal').textContent, '1450 g', 'with its weight');
+  }],
+
+  ['weigh a new recipe in its pan', () => {
+    tab('add');
+    $('new-recipe-btn').click();
+    ok(visible('recipe-pan-field'), 'Weighed in choice shown once a pan exists');
+    eq(text('recipe-weight-label'), 'Cooked weight (g)', 'None by default');
+    type('recipe-name', 'Stew');
+    $('add-ingredient').click();
+    type('ing-name', 'Stew mix');
+    type('ing-kcal', '100');
+    type('ing-amount', '800');
+    submit('ingredient-form');
+    type('recipe-portions', '4');
+    [...$('recipe-pan-field').querySelectorAll('label')].find((l) => l.textContent.includes('Big pot')).querySelector('input').click();
+    eq(text('recipe-weight-label'), 'Scale reading (g)', 'label changes with a pan');
+    type('recipe-weight', '1000');
+    ok(text('recipe-weight-note').includes('must be more than the pan (1450 g)'), 'note warns: ' + text('recipe-weight-note'));
+    submit('recipe-form');
+    ok(dialogOpen('recipe-dialog'), 'not logged with a reading lighter than the pan');
+    ok($('recipe-form').querySelector('.message.error').textContent.includes('more than the Big pot'), 'error names the pan');
+    type('recipe-weight', '2250');
+    eq(text('recipe-weight-note'), 'Cooked weight 800 g after the 1450 g pan.', 'shows the weight without the pan');
+    radio('recipe-unit', 'g');
+    type('recipe-qty', '100');
+    submit('recipe-form');
+    ok(!dialogOpen('recipe-dialog'), 'logged');
+    totalIs('1536'); // + 800 kcal / 800 g * 100 g
+  }],
+
+  ['editing shows the weight without the pan; deleting a pan offers undo', () => {
+    tab('library');
+    clickRow('library-recipes', 'Stew');
+    eq($('recipe-weight').value, '800', 'stored without the pan');
+    eq($('recipe-pan-field').querySelector('input:checked').value, '', 'pan starts at None');
+    $('recipe-form').querySelector('[data-close]').click();
+    tab('settings');
+    clickRow('pan-list', 'Big pot');
+    $('pan-delete').click();
+    eq(rows('pan-list').length, 0, 'deleted');
+    $('toast-undo').click();
+    eq(rowTitles('pan-list').join('|'), 'Big pot', 'undo restores it');
+  }],
+
+  ['pans survive a reload', async () => {
+    await loadApp();
+    tab('settings');
+    eq(rowTitles('pan-list').join('|'), 'Big pot', 'still saved');
+    tab('today');
+    totalIs('1536');
+  }],
 ];
 
 async function run() {

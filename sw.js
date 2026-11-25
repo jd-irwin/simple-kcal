@@ -3,7 +3,7 @@
 // replaces the old one and the new build loads the next time the app is opened.
 'use strict';
 
-const VERSION = '0.11.0';
+const VERSION = '0.12.0';
 const CACHE = 'simple-kcal-' + VERSION;
 const FILES = [
   './',
@@ -33,6 +33,7 @@ const FILES = [
   'ui/log.js',
   'ui/messages.js',
   'ui/nav.js',
+  'ui/pans.js',
   'ui/recipe.js',
   'ui/settings.js',
   'ui/store.js',

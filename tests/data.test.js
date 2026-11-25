@@ -136,7 +136,7 @@ test('isBackupStale at the 7-day boundary', () => {
 test('schema 3: a v2 store gains an empty target; a valid target is kept, a bad one dropped', () => {
   const v2 = { schemaVersion: 2, foods: [], recipes: [], entries: [], settings: { lastBackup: null, persistRequested: true } };
   const d = Calc.migrate(v2);
-  assert.equal(d.schemaVersion, 3);
+  assert.equal(d.schemaVersion, Calc.SCHEMA_VERSION);
   assert.equal(d.targetKcal, null);
   assert.equal(Calc.emptyData().targetKcal, null);
   assert.equal(Calc.migrate({ schemaVersion: 3, foods: [], recipes: [], entries: [], targetKcal: 2000 }).targetKcal, 2000);
@@ -149,9 +149,34 @@ test('the target is exported and imported; older backups import with no target',
   const data = Object.assign(Calc.emptyData(), { targetKcal: 1850 });
   const exported = Calc.buildExport(data, '2026-11-25T10:00:00.000Z');
   assert.equal(exported.targetKcal, 1850);
-  assert.equal(exported.schemaVersion, 3);
+  assert.equal(exported.schemaVersion, Calc.SCHEMA_VERSION);
   assert.equal(Calc.parseImport(JSON.stringify(exported)).data.targetKcal, 1850);
   const v2backup = { app: 'simple-kcal', schemaVersion: 2, exportedAt: '2026-11-20T10:00:00Z', foods: [], recipes: [], entries: [] };
   assert.equal(Calc.parseImport(JSON.stringify(v2backup)).data.targetKcal, null);
   assert.equal(Calc.buildExport(Calc.emptyData(), 'x').targetKcal, null);
+});
+
+test('schema 4: older data gains an empty pans list; bad pans are dropped and counted', () => {
+  const d = Calc.migrate({ schemaVersion: 3, foods: [], recipes: [], entries: [], targetKcal: 1800 });
+  assert.equal(d.schemaVersion, 4);
+  assert.deepEqual(d.pans, []);
+  assert.equal(d.targetKcal, 1800, 'earlier fields survive the upgrade');
+  assert.deepEqual(Calc.emptyData().pans, []);
+  const good = { id: 'p1', name: 'Big pot', weight: 1450 };
+  const v4 = Calc.migrate({ schemaVersion: 4, foods: [], recipes: [], entries: [],
+    pans: [good, { id: 'p2', name: 'No weight' }, { id: 'p3', name: 'Zero', weight: 0 }, 'pan', { name: 'No id', weight: 500 }] });
+  assert.deepEqual(v4.pans, [good]);
+  assert.equal(v4.skipped, 4);
+  assert.throws(() => Calc.migrate({ schemaVersion: 4, foods: [], recipes: [], entries: [] }), /pans/);
+});
+
+test('pans and a recipe\'s panId go through backup export and import', () => {
+  const data = Calc.emptyData();
+  data.pans.push({ id: 'p1', name: 'Big pot', weight: 1450 });
+  data.recipes.push({ id: 'r1', name: 'Chilli', ingredients: [], portions: 4, cookedWeight: 1230, panId: 'p1', lastUsed: 1 });
+  const r = Calc.parseImport(JSON.stringify(Calc.buildExport(data, '2026-11-25T10:00:00.000Z')));
+  assert.deepEqual(r.data.pans, data.pans);
+  assert.equal(r.data.recipes[0].panId, 'p1');
+  const v3backup = { app: 'simple-kcal', schemaVersion: 3, exportedAt: 'x', foods: [], recipes: [], entries: [], targetKcal: null };
+  assert.deepEqual(Calc.parseImport(JSON.stringify(v3backup)).data.pans, []);
 });

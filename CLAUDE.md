@@ -31,6 +31,7 @@ Primary: calorie and macro tracking.
 11. Copy entries from another day onto the day being viewed. The sheet opens on the most recent earlier day with entries, all ticked; arrows choose another day. Copies are snapshots like any entry: same quantity, unit, per-unit values and `sourceId`, with a new id, date and `created`. Copying updates the linked food's or recipe's `lastUsed`. Undo is offered.
 12. Optional daily calorie target, set in Settings (blank means none, and the app looks as it did without one). Today shows a progress bar under the total: "Target 2000 kcal · 550 left", or full and amber with "150 over". Left and over are worked out from the rounded total, so the shown numbers add up.
 13. History shows daily averages for the month on screen and for the last 7 days (the 7 days before today): average kcal per logged day and the number of logged days. Only days with at least one entry count (a day logged at 0 kcal counts), and today never counts because it is not finished. With a target set, each shows "N under target" or "N over target" (amber), from the rounded average.
+14. Saved pans (name and empty weight), managed in Settings. In the recipe builder, "Weighed in" offers None plus each pan (shown only when pans exist). With a pan chosen, the weight field takes the scale reading and the app shows "Cooked weight N g after the P g pan"; a reading not more than the pan is an error. The recipe stores the weight without the pan, and remembers the pan as `panId` for next time.
 
 Secondary: easy recipe creation (see Recipes).
 
@@ -40,7 +41,10 @@ Not wanted: barcode scanning, accounts, sync across devices, social features, a 
 
 ## Data model
 
-Three collections, a daily target, plus settings. All ids are short random strings. Current `schemaVersion` is 3.
+Three collections, pans, a daily target, plus settings. All ids are short random strings. Current `schemaVersion` is 4.
+
+**Pan** (schema 4)
+- `id`, `name`, `weight` (grams, empty; more than 0). Part of backups. Deleting a pan changes nothing else: a recipe whose `panId` no longer matches just has no pan pre-selected.
 
 **Target**
 - `targetKcal`: top-level number (at least 1), or `null` for no target. Added in schema 3. Unlike `settings` (which stay on the device), it is part of backups.
@@ -54,7 +58,8 @@ Three collections, a daily target, plus settings. All ids are short random strin
 **Recipe**
 - `id`, `name`
 - `ingredients`: list of `{ name, unit, amount, kcal, protein, carbs, fat }`, where `unit` is `"100g"` or `"item"` as for a food and `amount` is grams or number of items. Per-item ingredients need no weight. Ingredients are copies, not links, so editing a saved food does not silently change recipes. An ingredient can be picked from saved foods (which copies its values) or typed in ad hoc.
-- `cookedWeight` (grams, the weight of the finished batch)
+- `cookedWeight` (grams, the weight of the finished batch, without the pan)
+- `panId` (optional): the pan the batch was last weighed in. Editing a recipe without choosing a pan keeps it.
 - `portions` (number of portions the batch is divided into)
 - `lastUsed`
 - Derived, never stored: per-gram values (total / cookedWeight) and per-portion values (total / portions).
@@ -115,7 +120,7 @@ Screens, bottom tab bar:
 2. **Add.** One screen with: search box over saved foods and recipes only; recents at the top; "New food" form (Save to my foods checkbox, checked by default); "Quick add" form; "New recipe" entry point. Choosing a food asks for an amount, then logs it.
 3. **Library.** Foods and recipes, searchable, with edit and delete (confirm or offer undo). Saving an edit to a food or recipe shows the "apply to entries" prompt described under Editing behaviour.
 4. **History.** Calendar of kcal per day (tap a day to open it on Today), with daily averages below.
-5. **Settings.** Daily target, export, import, last backup, app version.
+5. **Settings.** Daily target, pans, export, import, last backup, app version.
 
 Design principles:
 - Adding a repeat food should take no more than three taps.

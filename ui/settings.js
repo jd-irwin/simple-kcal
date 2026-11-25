@@ -1,4 +1,4 @@
-// Settings screen: daily target, backup export and import, and the app version.
+// Settings screen: daily target, pans, backup export and import, and the app version.
 
 import Calc from '../calc/index.js';
 import { app, commit } from './store.js';
@@ -7,6 +7,7 @@ import { showMessage, clearMessage, toast } from './messages.js';
 import { plural, countsText } from './text.js';
 import { $, formError, numToField } from './dom.js';
 import { APP_VERSION } from '../version.js';
+import { renderPans } from './pans.js';
 
 function downloadFile(file) {
   const url = URL.createObjectURL(file);
@@ -97,6 +98,7 @@ function renderSettings() {
   $('last-backup').textContent = last ? Calc.formatDate(Calc.dateKey(new Date(last))) : 'Never';
   $('data-counts').textContent = 'On this phone: ' + countsText(Calc.countData(app.state)) + '.';
   $('app-version').textContent = APP_VERSION;
+  renderPans();
 }
 
 export function init() {

@@ -161,3 +161,12 @@ test('isRecipe tells recipes from foods', () => {
   assert.equal(Calc.isRecipe(porridge), true);
   assert.equal(Calc.isRecipe({ name: 'Oats', unit: '100g', kcal: 380 }), false);
 });
+
+test('netWeight takes the pan off the scale reading, and refuses a reading not over the pan', () => {
+  assert.equal(Calc.netWeight(2680, 1450), 1230);
+  approx(Calc.netWeight(1450.5, 1450), 0.5);
+  assert.equal(Calc.netWeight(1450, 1450), null); // nothing in the pan
+  assert.equal(Calc.netWeight(800, 1450), null);  // weighed without the pan, or the wrong pan
+  assert.equal(Calc.netWeight(null, 1450), null);
+  assert.equal(Calc.netWeight(2000, null), null);
+});

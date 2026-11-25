@@ -142,6 +142,13 @@
       </div>
 
       <div class="card">
+        <h2>Pans</h2>
+        <p class="muted small">Save the empty weight of the pans you cook batches in. When you make a recipe, weigh the batch in its pan and the app takes the pan off.</p>
+        <ul id="pan-list" class="list"></ul>
+        <button type="button" id="add-pan" class="btn btn-wide">+ Add pan</button>
+      </div>
+
+      <div class="card">
         <h2>Backup</h2>
         <p>Last backed up: <strong id="last-backup">Never</strong></p>
         <p class="muted" id="data-counts"></p>
@@ -305,9 +312,12 @@
       <h3 class="sheet-section">The batch</h3>
       <div class="field-row">
         <label class="field"><span>Portions</span><input type="text" id="recipe-portions" inputmode="decimal" autocomplete="off"></label>
-        <label class="field"><span>Cooked weight (g)</span><input type="text" id="recipe-weight" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
+        <label class="field"><span id="recipe-weight-label">Cooked weight (g)</span><input type="text" id="recipe-weight" inputmode="decimal" autocomplete="off" placeholder="optional"></label>
       </div>
-      <p class="muted small">Weigh the finished batch without the pan to log by grams. Leave blank to log by portion only.</p>
+      <fieldset id="recipe-pan-field" class="field segmented" hidden>
+        <legend>Weighed in</legend>
+      </fieldset>
+      <p id="recipe-weight-note" class="muted small"></p>
       <dl id="recipe-summary" class="summary"></dl>
 
       <div id="recipe-log-section">
@@ -401,6 +411,28 @@
       <div class="button-row">
         <button type="button" class="btn" data-close>Cancel</button>
         <button type="submit" class="btn btn-primary">Log</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Add or edit a saved pan (Settings) -->
+  <dialog id="pan-dialog" class="sheet">
+    <form id="pan-form" novalidate>
+      <h2 id="pan-title">Add pan</h2>
+      <label class="field">
+        <span>Name</span>
+        <input type="text" id="pan-name" autocomplete="off" autocapitalize="sentences" placeholder="for example Big pot" enterkeyhint="next">
+      </label>
+      <label class="field">
+        <span>Empty weight (g)</span>
+        <input type="text" id="pan-weight" inputmode="decimal" autocomplete="off">
+      </label>
+      <p class="muted small">Weigh it empty and clean. Include the lid if you weigh batches with the lid on.</p>
+      <p class="message error" hidden></p>
+      <div class="button-row">
+        <button type="button" id="pan-delete" class="btn btn-danger" hidden>Delete</button>
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
       </div>
     </form>
   </dialog>

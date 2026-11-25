@@ -4,7 +4,7 @@ import { isNum, scaleValues } from './values.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const APP_ID = 'simple-kcal';
 
@@ -17,6 +17,8 @@ export function emptyData() {
     foods: [],
     recipes: [],
     entries: [],
+    // Pans: { id, name, weight } with the empty weight in grams, for weighing a batch in its pan.
+    pans: [],
     // Daily kcal target, or null for none. Part of the data (and backups), unlike settings.
     targetKcal: null,
     settings: { lastBackup: null, persistRequested: false },
@@ -62,6 +64,11 @@ migrations[2] = function (d) {
   return Object.assign({}, d, { schemaVersion: 3, targetKcal: null });
 };
 
+// v4 adds saved pans. Recipes may also carry panId, the pan last used; older recipes simply have none.
+migrations[3] = function (d) {
+  return Object.assign({}, d, { schemaVersion: 4, pans: [] });
+};
+
 export function migrate(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error('The data is not in a format this app recognises.');
@@ -77,24 +84,26 @@ export function migrate(input) {
   for (let n = v; n < SCHEMA_VERSION; n++) {
     data = migrations[n](data);
   }
-  ['foods', 'recipes', 'entries'].forEach((k) => {
+  ['foods', 'recipes', 'entries', 'pans'].forEach((k) => {
     if (!Array.isArray(data[k])) throw new Error('The data is missing its list of ' + k + '.');
   });
   const foods = data.foods.filter(isValidFood);
   const recipes = data.recipes.filter(isValidRecipe).map((r) =>
     Object.assign({}, r, { ingredients: r.ingredients.filter(isValidIngredient) }));
   const entries = data.entries.filter(isValidEntry);
+  const pans = data.pans.filter(isValidPan);
   const ingredientsDropped = data.recipes.filter(isValidRecipe)
     .reduce((n, r) => n + r.ingredients.length, 0) -
     recipes.reduce((n, r) => n + r.ingredients.length, 0);
   const skipped = data.foods.length - foods.length + data.recipes.length - recipes.length +
-    data.entries.length - entries.length + ingredientsDropped;
+    data.entries.length - entries.length + data.pans.length - pans.length + ingredientsDropped;
   const defaults = emptyData().settings;
   const out = {
     schemaVersion: SCHEMA_VERSION,
     foods: foods,
     recipes: recipes,
     entries: entries,
+    pans: pans,
     targetKcal: isValidTarget(data.targetKcal) ? data.targetKcal : null,
     settings: Object.assign({}, defaults, isObject(data.settings) ? data.settings : {}),
   };
@@ -128,6 +137,10 @@ function isValidRecipe(r) {
     Array.isArray(r.ingredients);
 }
 
+function isValidPan(p) {
+  return isObject(p) && typeof p.id === 'string' && typeof p.name === 'string' && isNum(p.weight) && p.weight > 0;
+}
+
 function isValidEntry(e) {
   return isObject(e) && typeof e.id === 'string' && typeof e.date === 'string' &&
     /^\d{4}-\d{2}-\d{2}$/.test(e.date) && isNum(e.quantity) && isNum(e.perAmount);
@@ -145,6 +158,7 @@ export function buildExport(data, nowIso) {
     foods: data.foods,
     recipes: data.recipes,
     entries: data.entries,
+    pans: data.pans,
     targetKcal: isValidTarget(data.targetKcal) ? data.targetKcal : null,
   };
 }
@@ -165,6 +179,7 @@ export function parseImport(text) {
     foods: obj.foods,
     recipes: obj.recipes,
     entries: obj.entries,
+    pans: obj.pans,
     targetKcal: obj.targetKcal,
   });
   const exportedAt = typeof obj.exportedAt === 'string' ? obj.exportedAt : null;
