@@ -62,7 +62,7 @@ test('migrate v1 -> v2 converts entries to quantity and per-unit values', () => 
   };
   const before = Calc.sumEntries(v1.entries.map((e) => q(e)));
   const d = Calc.migrate(v1);
-  assert.equal(d.schemaVersion, 2);
+  assert.equal(d.schemaVersion, Calc.SCHEMA_VERSION);
   assert.equal('lastQty' in d.foods[0], false);
   assert.equal(d.foods[0].lastUsed, 5);
   d.entries.forEach((e) => assert.equal('amount' in e, false));
@@ -91,7 +91,7 @@ test('a v1 backup file imports as v2', () => {
     entries: [{ id: 'a', date: '2026-11-20', created: 1, name: 'Oats', kcal: 190, protein: null, carbs: null, fat: null, source: 'food', sourceId: null, amount: '50 g' }],
   });
   const r = Calc.parseImport(text);
-  assert.equal(r.data.schemaVersion, 2);
+  assert.equal(r.data.schemaVersion, Calc.SCHEMA_VERSION);
   assert.equal(r.data.entries[0].quantity, 50);
   approx(Calc.entryTotals(r.data.entries[0]).kcal, 190);
 });
@@ -131,4 +131,27 @@ test('isBackupStale at the 7-day boundary', () => {
   assert.equal(Calc.isBackupStale('2026-07-08T11:59:00Z', now), true);
   assert.equal(Calc.isBackupStale('2026-07-14T12:00:00Z', now), false);
   assert.equal(Calc.isBackupStale('garbage', now), true);
+});
+
+test('schema 3: a v2 store gains an empty target; a valid target is kept, a bad one dropped', () => {
+  const v2 = { schemaVersion: 2, foods: [], recipes: [], entries: [], settings: { lastBackup: null, persistRequested: true } };
+  const d = Calc.migrate(v2);
+  assert.equal(d.schemaVersion, 3);
+  assert.equal(d.targetKcal, null);
+  assert.equal(Calc.emptyData().targetKcal, null);
+  assert.equal(Calc.migrate({ schemaVersion: 3, foods: [], recipes: [], entries: [], targetKcal: 2000 }).targetKcal, 2000);
+  for (const bad of [0, -5, 0.4, '2000', null, undefined, NaN, Infinity]) {
+    assert.equal(Calc.migrate({ schemaVersion: 3, foods: [], recipes: [], entries: [], targetKcal: bad }).targetKcal, null, String(bad));
+  }
+});
+
+test('the target is exported and imported; older backups import with no target', () => {
+  const data = Object.assign(Calc.emptyData(), { targetKcal: 1850 });
+  const exported = Calc.buildExport(data, '2026-11-25T10:00:00.000Z');
+  assert.equal(exported.targetKcal, 1850);
+  assert.equal(exported.schemaVersion, 3);
+  assert.equal(Calc.parseImport(JSON.stringify(exported)).data.targetKcal, 1850);
+  const v2backup = { app: 'simple-kcal', schemaVersion: 2, exportedAt: '2026-11-20T10:00:00Z', foods: [], recipes: [], entries: [] };
+  assert.equal(Calc.parseImport(JSON.stringify(v2backup)).data.targetKcal, null);
+  assert.equal(Calc.buildExport(Calc.emptyData(), 'x').targetKcal, null);
 });

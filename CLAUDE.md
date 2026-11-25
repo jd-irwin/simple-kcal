@@ -29,16 +29,20 @@ Primary: calorie and macro tracking.
 9. Saving a food is optional, and defaults to on. When adding a food, a "Save to my foods" checkbox is shown, checked by default. Unchecking it means the entry goes to today's log only. There is no later prompt to save an unsaved food.
 10. Quick add: log calories and optional macros with no food or recipe behind them. Calories required, name optional (shown as "Quick add" if blank), macros optional.
 11. Copy entries from another day onto the day being viewed. The sheet opens on the most recent earlier day with entries, all ticked; arrows choose another day. Copies are snapshots like any entry: same quantity, unit, per-unit values and `sourceId`, with a new id, date and `created`. Copying updates the linked food's or recipe's `lastUsed`. Undo is offered.
+12. Optional daily calorie target, set in Settings (blank means none, and the app looks as it did without one). Today shows a progress bar under the total: "Target 2000 kcal · 550 left", or full and amber with "150 over". Left and over are worked out from the rounded total, so the shown numbers add up.
 
 Secondary: easy recipe creation (see Recipes).
 
 Nice to have, built last: a calendar view showing calories per day, tap a day to see its log.
 
-Not wanted: daily calorie target, barcode scanning, accounts, sync across devices, social features, a food database lookup.
+Not wanted: macro targets, barcode scanning, accounts, sync across devices, social features, a food database lookup.
 
 ## Data model
 
-Three collections, plus settings. All ids are short random strings.
+Three collections, a daily target, plus settings. All ids are short random strings. Current `schemaVersion` is 3.
+
+**Target**
+- `targetKcal`: top-level number (at least 1), or `null` for no target. Added in schema 3. Unlike `settings` (which stay on the device), it is part of backups.
 
 **Food**
 - `id`, `name`
@@ -106,11 +110,11 @@ The JavaScript is ES modules (`<script type="module">`), so the app must be serv
 Releasing: bump `APP_VERSION` in `version.js` and `VERSION` in `sw.js` together. Every app file must be listed in `FILES` in `sw.js`. `node test.js` checks both.
 
 Screens, bottom tab bar:
-1. **Today (home).** Date selector (previous/next day), total kcal, macro breakdown, list of entries with edit and delete. "Copy from another day" button. Prominent Add button.
+1. **Today (home).** Date selector (previous/next day), total kcal, macro breakdown, progress bar when a target is set, list of entries with edit and delete. "Copy from another day" button. Prominent Add button.
 2. **Add.** One screen with: search box over saved foods and recipes only; recents at the top; "New food" form (Save to my foods checkbox, checked by default); "Quick add" form; "New recipe" entry point. Choosing a food asks for an amount, then logs it.
 3. **Library.** Foods and recipes, searchable, with edit and delete (confirm or offer undo). Saving an edit to a food or recipe shows the "apply to entries" prompt described under Editing behaviour.
 4. **History.** Calendar view (last build stage).
-5. **Settings.** Export, import, last backup, app version.
+5. **Settings.** Daily target, export, import, last backup, app version.
 
 Design principles:
 - Adding a repeat food should take no more than three taps.
@@ -148,6 +152,6 @@ Design principles:
 - Entries are quantity, unit and per-unit values; totals are calculated, never stored.
 - Editing a saved food or recipe prompts per edit: apply to today's entries, all linked entries, or none (default).
 - No "save the day" journal and no live-lookup mode.
-- No daily calorie target.
+- Daily calorie target: optional, added after the original build (it was first ruled out). Shown on Today and in History averages only, never as a per-day colour on the calendar, because changing the target would re-judge past days.
 - Calendar history is built last.
 - No food API, no external dependencies.

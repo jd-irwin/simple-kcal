@@ -1,11 +1,11 @@
-// Settings screen: backup export and import, and the app version.
+// Settings screen: daily target, backup export and import, and the app version.
 
 import Calc from '../calc/index.js';
 import { app, commit } from './store.js';
 import { registerScreen } from './nav.js';
-import { showMessage, clearMessage } from './messages.js';
+import { showMessage, clearMessage, toast } from './messages.js';
 import { plural, countsText } from './text.js';
-import { $ } from './dom.js';
+import { $, formError, numToField } from './dom.js';
 import { APP_VERSION } from '../version.js';
 
 function downloadFile(file) {
@@ -72,7 +72,27 @@ async function importFile(file) {
   if (commit()) showMessage('Imported ' + countsText(result.counts) + '.');
 }
 
+// Blank removes the target; otherwise it must be a number of at least 1.
+function submitTarget(e) {
+  e.preventDefault();
+  const form = $('target-form');
+  const input = $('target-kcal');
+  const n = Calc.parseNumber(input.value);
+  if (n !== null && !Calc.isValidTarget(n)) {
+    formError(form, 'Enter the target as a number of calories, for example 2000, or leave it blank for no target.');
+    input.focus();
+    return;
+  }
+  formError(form, '');
+  app.state.targetKcal = n;
+  if (!commit()) return;
+  input.blur();
+  toast(n === null ? 'Target removed.' : 'Target saved: ' + Calc.fmtKcal(n) + ' kcal a day.');
+}
+
 function renderSettings() {
+  // Leave the field alone while it is being typed in.
+  if (document.activeElement !== $('target-kcal')) $('target-kcal').value = numToField(app.state.targetKcal);
   const last = app.state.settings.lastBackup;
   $('last-backup').textContent = last ? Calc.formatDate(Calc.dateKey(new Date(last))) : 'Never';
   $('data-counts').textContent = 'On this phone: ' + countsText(Calc.countData(app.state)) + '.';
@@ -81,6 +101,7 @@ function renderSettings() {
 
 export function init() {
   registerScreen('settings', renderSettings);
+  $('target-form').addEventListener('submit', submitTarget);
   $('export-btn').addEventListener('click', () => {
     exportData().catch((e) => showMessage('Export failed: ' + e.message, true));
   });

@@ -14,7 +14,7 @@ import {
   defaultQty, foodEntryUnit, entryTotals, entryFromFood, entryFromQuick, copyEntries, setEntryQuantity, setEntryNutrition, nutritionChanged, linkedEntryCounts, applyToEntries, entryFromRecipe, defaultRecipeAmount,
 } from './entries.js';
 import {
-  dailyKcal, entriesForDate, previousLoggedDay, macroStatus, sumEntries,
+  dailyKcal, entriesForDate, previousLoggedDay, macroStatus, sumEntries, targetProgress,
 } from './totals.js';
 import {
   fmtQty, formatAmount, formatEntryAmount, parseNumber, fmtKcal, fmtMacro,
@@ -23,7 +23,7 @@ import {
   searchRecent, searchByName,
 } from './search.js';
 import {
-  SCHEMA_VERSION, emptyData, migrate, countData, buildExport, parseImport, isBackupStale,
+  SCHEMA_VERSION, emptyData, migrate, countData, buildExport, parseImport, isBackupStale, isValidTarget,
 } from './data.js';
 
 const Calc = {
@@ -34,12 +34,12 @@ const Calc = {
   scaleNullable, foodEntryUnit, entryTotals, entryFromFood, entryFromQuick, copyEntries, setEntryQuantity,
   setEntryNutrition, nutritionChanged,
   isRecipe, linkedEntryCounts, applyToEntries,
-  sumEntries,
+  sumEntries, targetProgress,
   ingredientFromFood, ingredientValues, recipeTotals, recipeCanLogGrams, recipePerGram,
   recipePerPortion, recipePortionWeight, recipeUnitValues, recipeServing, entryFromRecipe,
   recipeChanged, defaultRecipeAmount,
   fmtKcal, fmtMacro,
-  SCHEMA_VERSION, emptyData, migrate, countData, buildExport, parseImport, isBackupStale,
+  SCHEMA_VERSION, emptyData, migrate, countData, buildExport, parseImport, isBackupStale, isValidTarget,
 };
 
 export default Calc;

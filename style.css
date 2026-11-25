@@ -9,6 +9,7 @@
   --danger: #b3261e;
   --notice-bg: #fff4d6;
   --notice-text: #5c4400;
+  --over: #b45309;
   --tap: 44px;
   --tabbar-h: 56px;
   color-scheme: light dark;
@@ -26,6 +27,7 @@
     --danger: #f2b8b5;
     --notice-bg: #3a3014;
     --notice-text: #f3dc9a;
+    --over: #f0b35a;
   }
 }
 
@@ -652,4 +654,38 @@ label.row input[type="checkbox"] {
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* ---------- Daily target ---------- */
+
+.target {
+  margin: -4px 0 14px;
+}
+
+.target-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.target-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.target.is-over .target-fill {
+  background: var(--over);
+}
+
+.target-text {
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.target.is-over .target-text {
+  color: var(--over);
+  font-weight: 600;
 }

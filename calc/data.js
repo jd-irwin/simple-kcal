@@ -4,7 +4,7 @@ import { isNum, scaleValues } from './values.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const APP_ID = 'simple-kcal';
 
@@ -17,6 +17,8 @@ export function emptyData() {
     foods: [],
     recipes: [],
     entries: [],
+    // Daily kcal target, or null for none. Part of the data (and backups), unlike settings.
+    targetKcal: null,
     settings: { lastBackup: null, persistRequested: false },
   };
 }
@@ -55,6 +57,11 @@ migrations[1] = function (d) {
   });
 };
 
+// v3 adds the optional daily kcal target.
+migrations[2] = function (d) {
+  return Object.assign({}, d, { schemaVersion: 3, targetKcal: null });
+};
+
 export function migrate(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new Error('The data is not in a format this app recognises.');
@@ -88,6 +95,7 @@ export function migrate(input) {
     foods: foods,
     recipes: recipes,
     entries: entries,
+    targetKcal: isValidTarget(data.targetKcal) ? data.targetKcal : null,
     settings: Object.assign({}, defaults, isObject(data.settings) ? data.settings : {}),
   };
   // Not stored: how many unreadable records were dropped, so the UI can say so.
@@ -99,6 +107,10 @@ export function migrate(input) {
 // crashing a screen. The checks are deliberately minimal.
 function isObject(v) {
   return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+export function isValidTarget(t) {
+  return isNum(t) && t >= 1;
 }
 
 function isValidFood(f) {
@@ -133,6 +145,7 @@ export function buildExport(data, nowIso) {
     foods: data.foods,
     recipes: data.recipes,
     entries: data.entries,
+    targetKcal: isValidTarget(data.targetKcal) ? data.targetKcal : null,
   };
 }
 
@@ -152,6 +165,7 @@ export function parseImport(text) {
     foods: obj.foods,
     recipes: obj.recipes,
     entries: obj.entries,
+    targetKcal: obj.targetKcal,
   });
   const exportedAt = typeof obj.exportedAt === 'string' ? obj.exportedAt : null;
   return { data, counts: countData(data), exportedAt, skipped: data.skipped };

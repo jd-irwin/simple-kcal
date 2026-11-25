@@ -347,6 +347,43 @@ const steps = [
     $('day-title-btn').click();
     totalIs('1436');
   }],
+
+  ['daily target and progress bar', () => {
+    tab('today');
+    ok(!visible('target'), 'no progress bar without a target');
+    tab('settings');
+    type('target-kcal', 'lots');
+    submit('target-form');
+    const err = $('target-form').querySelector('.message.error');
+    ok(!err.hidden && err.textContent.includes('for example 2000'), 'error says what to enter: ' + err.textContent);
+    type('target-kcal', '2000');
+    submit('target-form');
+    ok(err.hidden, 'error cleared');
+    tab('today');
+    ok(visible('target'), 'bar shown');
+    eq(text('target-text'), 'Target 2000 kcal · 564 left', 'under target');
+    eq($('target-fill').style.width, '71.8%', 'bar width');
+    ok(!$('target').classList.contains('is-over'), 'not marked over');
+    tab('settings');
+    type('target-kcal', '1000');
+    submit('target-form');
+    tab('today');
+    eq(text('target-text'), 'Target 1000 kcal · 436 over', 'over target');
+    eq($('target-fill').style.width, '100%', 'bar full');
+    ok($('target').classList.contains('is-over'), 'marked over');
+  }],
+
+  ['target survives a reload; clearing it hides the bar', async () => {
+    await loadApp();
+    eq(text('target-text'), 'Target 1000 kcal · 436 over', 'kept after reload');
+    tab('settings');
+    eq($('target-kcal').value, '1000', 'shown in Settings');
+    type('target-kcal', '');
+    submit('target-form');
+    tab('today');
+    ok(!visible('target'), 'no bar once cleared');
+    totalIs('1436');
+  }],
 ];
 
 async function run() {

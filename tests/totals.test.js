@@ -106,3 +106,16 @@ test('previousLoggedDay finds the latest earlier day with entries, skipping gaps
   assert.equal(Calc.previousLoggedDay([], '2026-11-25'), null);
   assert.equal(Calc.previousLoggedDay([at('2026-12-31')], '2027-01-01'), '2026-12-31'); // across a year
 });
+
+test('targetProgress: none without a target, left and over from the rounded total', () => {
+  assert.equal(Calc.targetProgress(1500, null), null);
+  assert.equal(Calc.targetProgress(1500, 0), null);
+  assert.deepEqual(Calc.targetProgress(1500, 2000), { percent: 75, left: 500, over: 0 });
+  assert.deepEqual(Calc.targetProgress(2150, 2000), { percent: 100, left: 0, over: 150 });
+  assert.deepEqual(Calc.targetProgress(2000, 2000), { percent: 100, left: 0, over: 0 });
+  assert.deepEqual(Calc.targetProgress(0, 2000), { percent: 0, left: 2000, over: 0 });
+  // 1449.5 shows as 1450, so 550 left (not 550.5 or 551): the shown numbers add up.
+  assert.deepEqual(Calc.targetProgress(1449.5, 2000), { percent: 72.5, left: 550, over: 0 });
+  assert.equal(Calc.fmtKcal(1449.5), '1450');
+  assert.equal(Calc.targetProgress(null, 2000).left, 2000);
+});

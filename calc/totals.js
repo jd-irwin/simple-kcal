@@ -3,6 +3,20 @@
 import { MACROS, isNum } from './values.js';
 import { entryTotals } from './entries.js';
 
+// Progress towards a daily kcal target, or null when there is no target. left and over are
+// worked out from the rounded total, so the numbers shown always add up to the target.
+// percent (0-100) is for the progress bar.
+export function targetProgress(kcal, target) {
+  if (!isNum(target) || Math.round(target) < 1) return null;
+  const total = Math.round(isNum(kcal) ? kcal : 0);
+  const goal = Math.round(target);
+  return {
+    percent: Math.min(100, Math.max(0, total / goal * 100)),
+    left: Math.max(0, goal - total),
+    over: Math.max(0, total - goal),
+  };
+}
+
 // The most recent date before key that has at least one entry, or null if there is none.
 export function previousLoggedDay(entries, key) {
   let best = null;

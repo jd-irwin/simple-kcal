@@ -8,6 +8,20 @@ import { $, makeRow } from './dom.js';
 import { openEntry } from './entry.js';
 import { openCopy } from './copy.js';
 
+// The progress bar under the total. Hidden when no target is set.
+function renderTarget(kcal) {
+  const target = app.state.targetKcal;
+  const progress = Calc.targetProgress(kcal, target);
+  $('target').hidden = !progress;
+  if (!progress) return;
+  const over = progress.over > 0;
+  $('target').classList.toggle('is-over', over);
+  $('target-fill').style.width = progress.percent + '%';
+  $('target-bar').setAttribute('aria-valuenow', String(progress.percent));
+  $('target-text').textContent = 'Target ' + Calc.fmtKcal(target) + ' kcal · ' +
+    (over ? progress.over + ' over' : progress.left + ' left');
+}
+
 function renderToday() {
   $('day-title').textContent = Calc.dayTitle(app.selectedDate, app.todayKey);
   // A named day (Today, Yesterday, Tomorrow) also shows its date underneath.
@@ -16,6 +30,7 @@ function renderToday() {
   const entries = Calc.entriesForDate(app.state.entries, app.selectedDate);
   const totals = Calc.sumEntries(entries);
   $('total-kcal').textContent = Calc.fmtKcal(totals.kcal);
+  renderTarget(totals.kcal);
 
   const notes = [];
   MACROS.forEach((k) => {
